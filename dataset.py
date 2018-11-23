@@ -8,14 +8,13 @@ import numpy as np
 class HPA(data.Dataset):
     def __init__(self, split='train', transform=None, target_transform=None):
         self.dataset = 'HPA'
-        # self.root = 'HPA/train' if split == 'train' else 'HPA/test'
-        self.root = 'train' if split == 'train' else 'test'
+        self.root = 'dataset' # 把解压后的train文件夹放在dataset目录下
         self.split = split
         self.transform = transform
         self.target_transform = target_transform
         self.data = {}  # key is img_id, value is multi-label
         # parse csv
-        with open('train.csv') as csv_file:
+        with open(f'{split}.csv') as csv_file:
             csv_reader = csv.reader(csv_file, delimiter=',')
             line_count = 0
             for row in csv_reader:
@@ -35,7 +34,7 @@ class HPA(data.Dataset):
         colors = ['green', 'red', 'blue', 'yellow']
         sample = []
         for color in colors:
-            im = Image.open(f'{self.root}/{img_id}_{color}.png')
+            im = Image.open(f'{self.root}/train/{img_id}_{color}.png')
             im = np.array(im, dtype=np.float32)
             im = np.expand_dims(im, axis=2)  # transform will convert HWC in [0,255] to CHW [0,1]
             sample.append(im)
