@@ -11,6 +11,7 @@ def parse_csv():
     with open('all.csv', 'r') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         line_count = 0
+
         for row in csv_reader:
             if line_count == 0:
                 line_count += 1
@@ -20,6 +21,7 @@ def parse_csv():
                 for l in labels:
                     class_to_ids[l].append(row[0])
                 line_count += 1
+
         print(f'Processed {line_count} lines.')
 
     # 将属于每个类的图片id存入txt文件，每行一个id
@@ -30,8 +32,11 @@ def parse_csv():
 
     # 计算每个类出现的概率，存入prob.json
     dict = {}
+    class_count = 0
     for i in range(28):
-        dict[i] = len(class_to_ids[i]) * 1.0 / line_count
+        class_count += len(class_to_ids[i])
+    for i in range(28):
+        dict[i] = len(class_to_ids[i]) * 1.0 / class_count
     with open('prob.json', 'w+') as f:
         f.write(json.dumps(dict))
 
@@ -57,5 +62,5 @@ def dataset_split(train_percent=0.33, validation_percent=0.33, test_percent=0.33
 
 
 if __name__ == '__main__':
-    # parse_csv()
+    parse_csv()
     dataset_split()
