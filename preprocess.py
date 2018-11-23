@@ -8,7 +8,7 @@ def parse_csv():
     for i in range(28):
         class_to_ids[i] = []
 
-    with open('all.csv') as csv_file:
+    with open('all.csv', 'r') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         line_count = 0
         for row in csv_reader:
@@ -38,7 +38,7 @@ def parse_csv():
 
 def dataset_split(train_percent=0.33, validation_percent=0.33, test_percent=0.33):
     content = []
-    with open('all.csv') as csv_file:
+    with open('all.csv', 'r') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         for row in csv_reader:
             if row[0] == 'Id':

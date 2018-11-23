@@ -3,7 +3,7 @@ import random
 import PIL
 import torch
 from torch.utils.data import DataLoader
-from torch.utils.data.sampler import Sampler
+from torch.utils.data.sampler import Sampler, SequentialSampler
 import torchvision.transforms as transforms
 
 from dataset import HPA
@@ -65,7 +65,7 @@ def get_data_loader_meta_learning(task, batch_size, split='train'):
     return loader
 
 
-def get_data_loader(batch_size, split='train'):
+def get_data_loader(batch_size, split='train', sequential=False):
     # G R B Y
     mean = [13.528, 20.535, 14.249, 21.106]
     std = [28.700, 38.161, 40.196, 38.172]
@@ -82,5 +82,9 @@ def get_data_loader(batch_size, split='train'):
         normalize
     ])
     dset = HPA(transform=preprocess, split=split)
-    loader = DataLoader(dset, batch_size=batch_size, shuffle=True, num_workers=1)
+    if sequential is True:
+        sampler = SequentialSampler(dset)
+        loader = DataLoader(dset, batch_size=batch_size, num_workers=1, sampler=sampler)
+    else:
+        loader = DataLoader(dset, batch_size=batch_size, shuffle=True, num_workers=1)
     return loader
