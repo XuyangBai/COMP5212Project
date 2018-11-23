@@ -86,25 +86,22 @@ class DataCube(object):
 
 class DataHub_ProteinCls(object):
     def __init__(self, root, train_split, val_split, test_split, datapath, train_batchsize,
-                 test_batchsize, modalities, std, mean, modal_test=None, datapath_test=None, 
-                 rand_flip=None, crop_type=None, crop_size_img=None, crop_size_label=None, 
-                 balance_rate=0.5, train_pad_size=None, test_pad_size=None, mod_drop_rate=0, 
-                 train_drop_last=False, crop_type_test=None, crop_size_img_test=None, 
-                 crop_size_label_test=None, DataSet=datasets.MMDataset, TestDataSet=None, 
+                 test_batchsize, modalities, std, mean,
+                 rand_flip=None, crop_type=None, crop_size_img=None, 
+                 balance_rate=0.5, train_pad_size=None, mod_drop_rate=0, 
+                 train_drop_last=False, 
+                 DataSet=datasets.MMDataset, 
                  label_loader_path=None, weighted_sample_rate=None, rand_rot90=False, 
-                 num_workers=1, mem_shape=None, random_black_patch_size=None, 
-                 mini_positive=None):
+                 num_workers=1, mem_shape=None, random_black_patch_size=None):
         self.root = root
         self.std = std
         self.mean = mean
         self.num_workers = num_workers
         self.mem_shape = mem_shape
-        if TestDataSet is None:
-            TestDataSet = DataSet
-        if datapath_test is None:
-            datapath_test = datapath
-        if modal_test is None:
-            modal_test = modalities
+
+        TestDataSet = DataSet
+        datapath_test = datapath
+        modal_test = modalities
 
         if train_split:
             with open(osp.join(root, train_split), 'r') as f:
@@ -127,13 +124,11 @@ class DataHub_ProteinCls(object):
         self.basic_transform_ops = [transforms.ToTensor(), transforms.Normalize(self.mean, self.std)]
 
         train_transform = \
-        self._make_train_transform(crop_type, crop_size_img, crop_size_label,
+        self._make_train_transform(crop_type, crop_size_img,
                                    rand_flip, mod_drop_rate, balance_rate,
-                                   train_pad_size, rand_rot90, random_black_patch_size,
-                                   mini_positive)
+                                   train_pad_size, rand_rot90, random_black_patch_size)
         test_transform = \
-        self._make_test_transform(crop_type_test, crop_size_img_test,
-                                  crop_size_label_test, test_pad_size)
+        self._make_test_transform()
 
         self._trainloader = \
         self._make_dataloader(DataSet, train_split, datapath, train_batchsize, train_transform,
@@ -190,9 +185,9 @@ class DataHub_ProteinCls(object):
                                  num_workers=self.num_workers, pin_memory=False, drop_last=False)
         return data_loader
 
-    def _make_train_transform(self, crop_type, crop_size_img, crop_size_label,
+    def _make_train_transform(self, crop_type, crop_size_img,
                              rand_flip, mod_drop_rate, balance_rate, pad_size,
-                             rand_rot90, random_black_patch_size, mini_positive):
+                             rand_rot90, random_black_patch_size):
         train_transform_ops = self.basic_transform_ops.copy()
             
         train_transform_ops += [transforms.RandomBlack(random_black_patch_size),
@@ -205,16 +200,11 @@ class DataHub_ProteinCls(object):
             train_transform_ops.append(transforms.RandomRotate2d())
 
         if crop_type == 'random':
-            if mini_positive:
-                train_transform_ops.append(transforms.RandomCropMinSize(crop_size_img, mini_positive))
-            else:
-                train_transform_ops.append(transforms.RandomCrop(crop_size_img))
+            train_transform_ops.append(transforms.RandomCrop(crop_size_img))
         elif crop_type == 'balance':
-            train_transform_ops.append(transforms.BalanceCrop(balance_rate, crop_size_img,
-                                                              crop_size_label))
+            train_transform_ops.append(transforms.BalanceCrop(balance_rate, crop_size_img))
         elif crop_type == 'center':
-            train_transform_ops.append(transforms.CenterCrop(crop_size_img,
-                                                          crop_size_label))
+            train_transform_ops.append(transforms.CenterCrop(crop_size_img))
         elif crop_type is None:
             pass
         else:
@@ -222,18 +212,8 @@ class DataHub_ProteinCls(object):
 
         return transforms.Compose(train_transform_ops)
 
-    def _make_test_transform(self, crop_type, crop_size_img, crop_size_label, pad_size):
+    def _make_test_transform(self): 
         test_transform_ops = self.basic_transform_ops.copy()
-        if pad_size is not None:
-            test_transform_ops.append(transforms.Pad(pad_size, 0))
-        if crop_type == 'center':
-            test_transform_ops.append(transforms.CenterCrop(crop_size_img,
-                                                          crop_size_label))
-        elif crop_type is None:
-            pass
-        else:
-            raise RuntimeError('Unknown test crop type.')
-
         return transforms.Compose(test_transform_ops)
 
     def trainloader(self):
