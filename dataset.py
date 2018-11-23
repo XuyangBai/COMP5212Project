@@ -32,12 +32,12 @@ class HPA(data.Dataset):
         self.img_ids = list(self.data.keys())
 
     def load_image(self, img_id):
-        colors = ['green', 'blue', 'red', 'yellow']
+        colors = ['green', 'red', 'blue', 'yellow']
         sample = []
         for color in colors:
             im = Image.open(f'{self.root}/{img_id}_{color}.png')
             im = np.array(im, dtype=np.float32)
-            im = np.expand_dims(im, axis=2)
+            im = np.expand_dims(im, axis=2)  # transform will convert HWC in [0,255] to CHW [0,1]
             sample.append(im)
         img = np.concatenate(sample, axis=2)
         return img
@@ -45,7 +45,7 @@ class HPA(data.Dataset):
     def __getitem__(self, idx):
         img_id = self.img_ids[idx]
         im = self.load_image(img_id)
-        if self.transform is not None:  # TODO: transform??
+        if self.transform is not None:
             im = self.transform(im)
         label = self.data[img_id]
         if self.target_transform is not None:

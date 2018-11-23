@@ -50,8 +50,9 @@ class ClassBalancedSampler(Sampler):
 
 def get_data_loader_meta_learning(task, batch_size, split='train'):
     normalize = transforms.Normalize(
-        mean=[0.92206, 0.92206, 0.92206],
-        std=[0.08426, 0.08426, 0.08426]
+        # G R B Y
+        mean=[13.528, 20.535, 14.249, 21.106],
+        std=[28.700, 38.161, 40.196, 38.172]
     )
     preprocess = transforms.Compose([
         # transforms.RandomCrop(224),
@@ -65,9 +66,14 @@ def get_data_loader_meta_learning(task, batch_size, split='train'):
 
 
 def get_data_loader(batch_size, split='train'):
+    # G R B Y
+    mean = [13.528, 20.535, 14.249, 21.106]
+    std = [28.700, 38.161, 40.196, 38.172]
+    # mean =  [x / 255.0 for x in [13.528, 20.535, 14.249, 21.106]]
+    # std = [x / 255.0 for x in [28.700, 38.161, 40.196, 38.172]]
     normalize = transforms.Normalize(
-        mean=[0.92206, 0.92206, 0.92206],
-        std=[0.08426, 0.08426, 0.08426]
+        mean=mean,
+        std=std
     )
     preprocess = transforms.Compose([
         # transforms.Resize(128, PIL.Image.BILINEAR),
