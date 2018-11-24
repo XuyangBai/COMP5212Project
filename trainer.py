@@ -12,6 +12,7 @@ import numpy as np
 import os.path as P
 from model import resnet18_protein
 from utils import timestr, adjust_opt
+from evaluator import evaluate as eval_kernel
 
 class Dummy_Dataloader(object):
     '''Create a dummy dataloader to test trainer'''
@@ -33,15 +34,17 @@ class Dummy_Dataloader(object):
         self.outstanding_batches -= 1
         return self.data, self.label
     
-def evaluate(model, dataloader):
-    pass
+def evaluate(model, dataloader, device):
+    model.eval()
+    metrics = eval_kernel(model, dataloader, device)
+    return metrics['accuracy']
     
 
 class Trainer(object):
     '''A functional class facilitating and supporting all procedures in training phase'''
     def __init__(self, model_cube, data_cube, criterion_cube, writer_cube, 
-                 lr_scheme, snapshot_scheme, device, wrap_test=False):
-        self.model, self.optimizer, self.start_epoch, self.num_mo = \
+                 lr_scheme, snapshot_scheme, device, wrap_test=False, task_weight=None):
+        self.model, self.optimizer, self.start_epoch = \
             self.init_model(model_cube) # Initialize model
 #        if model_cube['resume']:
 #            self._optim_device(device)
@@ -53,11 +56,13 @@ class Trainer(object):
         self.max_epoch = lr_scheme['max_epoch'] if not wrap_test else 0
         self.root = snapshot_scheme['root']
         self.device = device
+        self.task_weight = task_weight
         
         if not wrap_test:
             with open( P.join(self.root, 'description.txt'), 'w' ) as f:
                 f.write(str(lr_scheme) + '\n' + str(snapshot_scheme) + '\n' + str(self.model))
         self.model.to(self.device)
+        self.model.train()
         
     def train(self):
         '''Cordinate the whole training phase, mainly recording of losses and metrics, 
@@ -82,27 +87,28 @@ class Trainer(object):
                 self._snapshot(epoch)
             
             if epoch % self.snapshot_scheme['val_interval'] == 0 or epoch == self.start_epoch:
-                metric = self.validate_online(epoch)
-                if max_metric <= metric and epoch > 10:
-                    max_metric = metric
+                train_metric, val_metric = self.validate_online(epoch)
+                if max_metric <= val_metric and epoch > 10:
+                    max_metric = val_metric
                     self._snapshot(epoch, 'max')
             
             if self.writer:
                 self.writer.add_scalar('Learning Rate', self._get_lr(), epoch)
                 self.writer.add_scalar('Loss', loss, epoch)
-                self.writer.add_scalar('Accuracy', metric, epoch)
+                self.writer.add_scalar('Accuracy_train', train_metric, epoch)
+                self.writer.add_scalar('Accuracy_val', val_metric, epoch)
                     
-            self.criterion_seg.decay_loss_weight()
-            self.criterion_cls.decay_loss_weight()
         
         self._snapshot(epoch, str(epoch))
         
     def train_epoch(self):
         '''Train the model for one epoch, return the average loss'''
         loss_buf = []
-        for images, labels in iter(self.dataloader):
+        for i, (images, labels) in enumerate(self.trainloader):
             # images (N, C, H, W) => (N, 28), labels (N, 28)
             images, labels = images.to(self.device), labels.to(self.device)
+            labels.squeeze_(dim=1)
+            labels = labels.float()
             self.optimizer.zero_grad()
             out = self.model(images)
             criterion = nn.BCEWithLogitsLoss(self.task_weight)
@@ -110,6 +116,7 @@ class Trainer(object):
             loss.backward()
             self.optimizer.step()
             loss_buf.append(loss.detach().cpu().numpy())
+            print('The %d-th batch finished: loss = %.3f' % (i, loss_buf[-1]))
         
         return np.array(loss_buf).mean()
         
@@ -123,16 +130,16 @@ class Trainer(object):
         
     def validate_final(self):
         '''Validate the model after training finished, detailed metrics would be recorded'''
-        train_metric = evaluate(self.model, self.trainseqloader)
-        val_metric = evaluate(self.model, self.valloader)
-        test_metric = evaluate(self.model, self.testloader)
+        train_metric = evaluate(self.model, self.trainseqloader, self.device)
+        val_metric = evaluate(self.model, self.valloader, self.device)
+        test_metric = evaluate(self.model, self.testloader, self.device)
         
         return train_metric, val_metric, test_metric
                 
     def validate_online(self, epoch):
         '''Validate the model during training, record a minimal number of metrics'''
-        train_metric = evaluate(self.model, self.trainseqloader)
-        val_metric = evaluate(self.model, self.valloader)
+        train_metric = evaluate(self.model, self.trainseqloader, self.device)
+        val_metric = evaluate(self.model, self.valloader, self.device)
         
         return train_metric, val_metric
         
@@ -143,7 +150,6 @@ class Trainer(object):
         optimizer = model_cube['optimizer']
         pretrain = model_cube['pretrain']
         resume = model_cube['resume']
-        num_mo = model_cube['num_mo']
         start_epoch = 1
         if resume:
             if P.isfile(resume):
@@ -161,10 +167,8 @@ class Trainer(object):
                 model.load_state_dict(state['state_dict'])
             else:
                 raise RuntimeError('No checkpoint found at %s' % pretrain)
-        else:
-            weight_init_func = model_cube['init_func']
-            model.apply(weight_init_func)
-        return model, optimizer, start_epoch, num_mo
+        
+        return model, optimizer, start_epoch
     
     def parse_dataloader(self, data_cube):
         self.trainloader = data_cube.trainloader()
@@ -228,6 +232,23 @@ class TrainerX(object):
         self.model.to(device)
         if self.task_weight != None:
             self.task_weight = torch.Tensor(self.task_weight).to(device)
+            
+    def train_epoch(self):
+        '''Train the model for one epoch, return the average loss'''
+        loss_buf = []
+        for images, labels in iter(self.dataloader):
+            # images (N, C, H, W) => (N, 28), labels (N, 28)
+            images, labels = images.to(self.device), labels.to(self.device)
+            labels.squeeze_(dim=1)
+            self.optimizer.zero_grad()
+            out = self.model(images)
+            criterion = nn.BCEWithLogitsLoss(self.task_weight)
+            loss = criterion(out, labels)
+            loss.backward()
+            self.optimizer.step()
+            loss_buf.append(loss.detach().cpu().numpy())
+        
+        return np.array(loss_buf).mean()
         
     def train():
         pass

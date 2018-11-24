@@ -17,6 +17,7 @@ import os.path as P
 import shutil
 from utils import DataCube
 from model import resnet18_protein
+from dataloader import get_data_loader
 
 
 device = torch.device('cuda:0')
@@ -24,8 +25,14 @@ timestr = time.strftime('%m%d%H%M')
 this_fname = 'train.py'
 
 
-# TODO
-data_cube = DataCube()
+train_bs, test_bs = 128, 256
+data_root = '/home/rongzhao/projects/ml_kaggle_protein/data/download'
+train_loader = get_data_loader(data_root, train_bs, split='train', sequential=False)
+val_loader = get_data_loader(data_root, train_bs, split='validation', sequential=True)
+test_loader = get_data_loader(data_root, train_bs, split='test', sequential=True)
+trainseq_loader = get_data_loader(data_root, train_bs, split='train', sequential=True)
+
+data_cube = DataCube(train_loader, val_loader, test_loader, trainseq_loader)
 
 lr = 0.03
 lr_scheme = {
@@ -42,7 +49,7 @@ lr_scheme = {
 #experiment_id = 'Toy_%s' % timestr
 
 model = resnet18_protein()
-experiment_id = 'ResNet18_multitask_%s' % timestr
+experiment_id = 'ResNet18_multitask' #_%s' % timestr
 model_cube = {
         'model': model,
 #        'init_func': misc.weights_init,
@@ -60,7 +67,7 @@ shutil.copy2(P.join('.', this_fname), P.join(snapshot_root, this_fname))
 
 snapshot_scheme = {
         'root': snapshot_root,
-        'display_interval': 10,
+        'display_interval': 1,
         'val_interval': 10,
         'snapshot_interval': 999999,
         }

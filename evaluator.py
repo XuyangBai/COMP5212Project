@@ -45,38 +45,39 @@ def __count_acc(outputs, targets):
     # [n,1,28]
     acc = [0 for _ in range(28)]
     for i in range(28):
-        acc[i] = (outputs[:, :, i] == targets[:, :, i]).sum() / outputs.shape[0]
+        acc[i] = (outputs[:, i] == targets[:, i]).sum() / outputs.shape[0]
     return acc
 
 
 def __forward_pass(model, input):
     ''' forward in_ through the net, return outputs '''
     ''' forward process of the trained model is defined as net_forward '''
-    input_var = Variable(input).cuda(async=True)
-    outputs = model.net_forward(input_var)
+    outputs = model(input)
     return outputs
 
 
-def evaluate(trained_model, batch_size=32):
+def evaluate(trained_model, loader, device):
     ''' evaluate the net on the data in the loader '''
     model = trained_model
-    loader = get_data_loader(batch_size, split='test')
     hamming_loss = []
     Jaccard_index = []
     accuracy = [[] for _ in range(28)]
-    for i_batch, sample_batch in enumerate(loader):
-        outputs = __forward_pass(model, sample_batch[0])
-        batch_acc = __count_acc(outputs, sample_batch[1])
+    for i_batch, (images, labels) in enumerate(loader):
+        images, labels = images.to(device), labels.to(device)
+        labels = labels.float()
+        labels.squeeze_(dim=1)
+        outputs = __forward_pass(model, images)
+        batch_acc = __count_acc(outputs, labels)
         for i in range(28):
-            accraucy[i].append(batch_acc[i])
-        hamming_loss.append(__count_hamming_loss(outputs, sample_batch[1]))
-        Jaccard_index.append(__cout_Jaccard_index(outputs, sample_batch[1]))
+            accuracy[i].append(batch_acc[i])
+#        hamming_loss.append(__count_hamming_loss(outputs, labels))
+#        Jaccard_index.append(__cout_Jaccard_index(outputs, labels))
     # calculate average accuracy for each class
     for i in range(28):
         accuracy[i] = np.mean(accuracy[i])
     metrix = {
-        'hamming': np.mean(hamming_loss),
-        'jaccard': np.mean(Jaccard_index),
-        'accuracy': accuracy,
+#        'hamming': np.mean(hamming_loss),
+#        'jaccard': np.mean(Jaccard_index),
+        'accuracy': np.array(accuracy).mean(),
     }
     return metrix

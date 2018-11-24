@@ -65,7 +65,7 @@ def get_data_loader_meta_learning(task, batch_size, split='train'):
     return loader
 
 
-def get_data_loader(batch_size, split='train', sequential=False):
+def get_data_loader(root, batch_size, split='train', sequential=False):
     # G R B Y
     mean = [13.528, 20.535, 14.249, 21.106]
     std = [28.700, 38.161, 40.196, 38.172]
@@ -81,7 +81,7 @@ def get_data_loader(batch_size, split='train', sequential=False):
         transforms.ToTensor(),
         normalize
     ])
-    dset = HPA(transform=preprocess, split=split)
+    dset = HPA(root=root, transform=preprocess, split=split)
     if sequential is True:
         sampler = SequentialSampler(dset)
         loader = DataLoader(dset, batch_size=batch_size, num_workers=1, sampler=sampler)

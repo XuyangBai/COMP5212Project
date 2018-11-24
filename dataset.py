@@ -6,9 +6,9 @@ import numpy as np
 
 
 class HPA(data.Dataset):
-    def __init__(self, split='train', transform=None, target_transform=None):
+    def __init__(self, root, split='train', transform=None, target_transform=None):
         self.dataset = 'HPA'
-        self.root = 'dataset' # 把解压后的train文件夹放在dataset目录下
+        self.root = root # 把解压后的train文件夹放在dataset目录下
         self.split = split
         self.transform = transform
         self.target_transform = target_transform
