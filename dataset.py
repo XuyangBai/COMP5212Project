@@ -25,20 +25,21 @@ class HPA(data.Dataset):
                     temp = [int(n) for n in row[1].split(' ')]
                     labels = np.zeros([1, 28])
                     labels[0, temp] = 1
-                    self.data[row[0]] = labels.astype(np.long)
+                    self.data[row[0]] = labels.astype(np.float)
                     line_count += 1
             print(f'Processed {line_count} lines.')
         self.img_ids = list(self.data.keys())
 
     def load_image(self, img_id):
-        colors = ['green', 'red', 'blue', 'yellow']
-        sample = []
-        for color in colors:
-            im = Image.open(f'{self.root}/train/{img_id}_{color}.png')
-            im = np.array(im, dtype=np.float32)
-            im = np.expand_dims(im, axis=2)  # transform will convert HWC in [0,255] to CHW [0,1]
-            sample.append(im)
-        img = np.concatenate(sample, axis=2)
+        # colors = ['green', 'red', 'blue', 'yellow']
+        # sample = []
+        # for color in colors:
+        #     im = Image.open(f'{self.root}/train/{img_id}_{color}.png')
+        #     im = np.array(im, dtype=np.float32)
+        #     im = np.expand_dims(im, axis=2)  # transform will convert HWC in [0,255] to CHW [0,1]
+        #     sample.append(im)
+        # img = np.concatenate(sample, axis=2)
+        img = np.load(f'npy/{img_id}.npy')
         return img
 
     def __getitem__(self, idx):
