@@ -39,7 +39,7 @@ class HPA(data.Dataset):
         #     im = np.expand_dims(im, axis=2)  # transform will convert HWC in [0,255] to CHW [0,1]
         #     sample.append(im)
         # img = np.concatenate(sample, axis=2)
-        img = np.load(f'npy/{img_id}.npy')
+        img = np.load(f'{self.root}/{img_id}.npy')
         return img
 
     def __getitem__(self, idx):
