@@ -62,3 +62,18 @@ class evaluator:
         self.__cout_Jaccard_index(outputs, self.test_label)
         self.__count_precision_and_recall(outputs, self.test_label)
         self.__count_f1_score()
+    
+    def get_hamming_loss(self):
+        return self.hamming_loss
+    
+    def get_Jaccard_index(self):
+        return self.Jaccard_index
+    
+    def get_precision(self):
+        return self.precision
+
+    def get_recall(self):
+        return self.recall
+    
+    def get_f1_score(self):
+        return self.f1_score
