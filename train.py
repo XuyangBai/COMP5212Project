@@ -49,7 +49,7 @@ lr_scheme = {
 #experiment_id = 'Toy_%s' % timestr
 
 model = resnet18_protein()
-experiment_id = 'ResNet18_multitask' #_%s' % timestr
+experiment_id = 'ResNet18_multitask_%s' % timestr
 model_cube = {
         'model': model,
 #        'init_func': misc.weights_init,

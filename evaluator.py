@@ -45,7 +45,7 @@ def __count_acc(outputs, targets):
     # [n,1,28]
     acc = [0 for _ in range(28)]
     for i in range(28):
-        acc[i] = (outputs[:, i] == targets[:, i]).sum() / outputs.shape[0]
+        acc[i] = (outputs[:, i] == targets[:, i]).float().sum() / outputs.shape[0]
     return acc
 
 
@@ -59,14 +59,13 @@ def __forward_pass(model, input):
 def evaluate(trained_model, loader, device):
     ''' evaluate the net on the data in the loader '''
     model = trained_model
-    hamming_loss = []
-    Jaccard_index = []
     accuracy = [[] for _ in range(28)]
     for i_batch, (images, labels) in enumerate(loader):
         images, labels = images.to(device), labels.to(device)
-        labels = labels.float()
+        labels = labels.byte()
         labels.squeeze_(dim=1)
-        outputs = __forward_pass(model, images)
+        outputs = __forward_pass(model, images) >= 0
+        
         batch_acc = __count_acc(outputs, labels)
         for i in range(28):
             accuracy[i].append(batch_acc[i])
@@ -75,9 +74,9 @@ def evaluate(trained_model, loader, device):
     # calculate average accuracy for each class
     for i in range(28):
         accuracy[i] = np.mean(accuracy[i])
-    metrix = {
+    metric = {
 #        'hamming': np.mean(hamming_loss),
 #        'jaccard': np.mean(Jaccard_index),
         'accuracy': np.array(accuracy).mean(),
     }
-    return metrix
+    return metric

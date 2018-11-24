@@ -37,6 +37,7 @@ class Dummy_Dataloader(object):
 def evaluate(model, dataloader, device):
     model.eval()
     metrics = eval_kernel(model, dataloader, device)
+    model.train()
     return metrics['accuracy']
     
 
@@ -88,6 +89,8 @@ class Trainer(object):
             
             if epoch % self.snapshot_scheme['val_interval'] == 0 or epoch == self.start_epoch:
                 train_metric, val_metric = self.validate_online(epoch)
+                print('Train Accuracy: %.3f' % train_metric)
+                print('Val Accuracy: %.3f' % val_metric)
                 if max_metric <= val_metric and epoch > 10:
                     max_metric = val_metric
                     self._snapshot(epoch, 'max')
@@ -98,7 +101,10 @@ class Trainer(object):
                 self.writer.add_scalar('Accuracy_train', train_metric, epoch)
                 self.writer.add_scalar('Accuracy_val', val_metric, epoch)
                     
-        
+        train_metric, val_metric, test_metric = self.validate_final()
+        print('Train Accuracy: %.3f' % train_metric)
+        print('Val Accuracy: %.3f' % val_metric)
+        print('Test Accuracy: %.3f' % test_metric)
         self._snapshot(epoch, str(epoch))
         
     def train_epoch(self):
@@ -120,6 +126,12 @@ class Trainer(object):
         
         return np.array(loss_buf).mean()
         
+    def evaluate(self, dataloader):
+        self.model.eval()
+        metrics = eval_kernel(self.model, dataloader, self.device)
+        self.model.train()
+        return metrics['accuracy']
+    
     def test(self, state_suffix, foldername, is_indiv=False, is_save_png=False, 
              seg_thres=0.5, cls_thres=0.5, is_cc=False):
         '''Cordinate the testing of the model after training'''
@@ -130,16 +142,16 @@ class Trainer(object):
         
     def validate_final(self):
         '''Validate the model after training finished, detailed metrics would be recorded'''
-        train_metric = evaluate(self.model, self.trainseqloader, self.device)
-        val_metric = evaluate(self.model, self.valloader, self.device)
-        test_metric = evaluate(self.model, self.testloader, self.device)
+        train_metric = self.evaluate(self.trainseqloader)
+        val_metric = self.evaluate(self.valloader)
+        test_metric = self.evaluate(self.testloader)
         
         return train_metric, val_metric, test_metric
                 
     def validate_online(self, epoch):
         '''Validate the model during training, record a minimal number of metrics'''
-        train_metric = evaluate(self.model, self.trainseqloader, self.device)
-        val_metric = evaluate(self.model, self.valloader, self.device)
+        train_metric = self.evaluate(self.trainseqloader)
+        val_metric = self.evaluate(self.valloader)
         
         return train_metric, val_metric
         
