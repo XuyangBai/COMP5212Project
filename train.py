@@ -24,9 +24,11 @@ device = torch.device('cuda:0')
 timestr = time.strftime('%m%d%H%M')
 this_fname = 'train.py'
 
+verbose_output = False
+is_temp = True
 
 train_bs, test_bs = 128, 256
-data_root = '/home/rongzhao/projects/ml_kaggle_protein/data/download'
+data_root = '/home/rongzhao/projects/ml_kaggle_protein/data/npy'
 train_loader = get_data_loader(data_root, train_bs, split='train', sequential=False)
 val_loader = get_data_loader(data_root, train_bs, split='validation', sequential=True)
 test_loader = get_data_loader(data_root, train_bs, split='test', sequential=True)
@@ -49,7 +51,10 @@ lr_scheme = {
 #experiment_id = 'Toy_%s' % timestr
 
 model = resnet18_protein()
-experiment_id = 'ResNet18_multitask_%s' % timestr
+if is_temp:
+    experiment_id = 'ResNet18_multitask_temp' #_%s' % timestr
+else:
+    experiment_id = 'ResNet18_multitask_%s' % timestr
 model_cube = {
         'model': model,
 #        'init_func': misc.weights_init,
@@ -79,7 +84,7 @@ writer_cube = {
 
 trainer = Trainer(model_cube, data_cube, criterion_cube, writer_cube, 
                   lr_scheme, snapshot_scheme, device)
-trainer.train()
+trainer.train('accuracy', verbose_output)
 
 
 

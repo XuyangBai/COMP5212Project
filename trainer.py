@@ -34,12 +34,17 @@ class Dummy_Dataloader(object):
         self.outstanding_batches -= 1
         return self.data, self.label
     
-def evaluate(model, dataloader, device):
-    model.eval()
-    metrics = eval_kernel(model, dataloader, device)
-    model.train()
-    return metrics['accuracy']
-    
+class Metric(object):
+    '''Metric class manages the record and log of classification metrics'''
+    def __init__(self, metric_dict, split):
+        self.dict = metric_dict
+        self.split = split
+        
+    def print(self):
+        pstr = ''
+        for k, v in self.dict.items():
+            pstr += '%s = %.3f ' % (k, v)
+        print(self.split + ': ' + pstr)
 
 class Trainer(object):
     '''A functional class facilitating and supporting all procedures in training phase'''
@@ -65,7 +70,11 @@ class Trainer(object):
         self.model.to(self.device)
         self.model.train()
         
-    def train(self):
+    def tb_write_scalar(self, metric, epoch):        
+        for k, v in metric.dict.items():
+            self.writer.add_scalar('%s/%s' % (metric.split, k), v, epoch)
+        
+    def train(self, metricOI='f1_macro', verbose=False):
         '''Cordinate the whole training phase, mainly recording of losses and metrics, 
         lr and loss weight decay, snapshotting, etc.'''
         loss_all = []
@@ -74,7 +83,7 @@ class Trainer(object):
         for epoch in range(self.start_epoch, self.max_epoch+1):
             # Adjust learning rate
             adjust_opt(self.optimizer, epoch-1, **self.lr_scheme)
-            loss = self.train_epoch()
+            loss = self.train_epoch(verbose)
             loss_all.append(loss)
             
             if epoch % self.snapshot_scheme['display_interval'] == 0 or epoch == self.start_epoch:
@@ -89,25 +98,25 @@ class Trainer(object):
             
             if epoch % self.snapshot_scheme['val_interval'] == 0 or epoch == self.start_epoch:
                 train_metric, val_metric = self.validate_online(epoch)
-                print('Train Accuracy: %.3f' % train_metric)
-                print('Val Accuracy: %.3f' % val_metric)
-                if max_metric <= val_metric and epoch > 10:
-                    max_metric = val_metric
+                train_metric.print()
+                val_metric.print()
+                if max_metric <= val_metric.dict[metricOI] and epoch > 10:
+                    max_metric = val_metric.dict[metricOI]
                     self._snapshot(epoch, 'max')
             
             if self.writer:
                 self.writer.add_scalar('Learning Rate', self._get_lr(), epoch)
                 self.writer.add_scalar('Loss', loss, epoch)
-                self.writer.add_scalar('Accuracy_train', train_metric, epoch)
-                self.writer.add_scalar('Accuracy_val', val_metric, epoch)
+                self.tb_write_scalar(train_metric, epoch)
+                self.tb_write_scalar(val_metric, epoch)
                     
         train_metric, val_metric, test_metric = self.validate_final()
-        print('Train Accuracy: %.3f' % train_metric)
-        print('Val Accuracy: %.3f' % val_metric)
-        print('Test Accuracy: %.3f' % test_metric)
+        train_metric.print()
+        val_metric.print()
+        test_metric.print()
         self._snapshot(epoch, str(epoch))
         
-    def train_epoch(self):
+    def train_epoch(self, verbose=False):
         '''Train the model for one epoch, return the average loss'''
         loss_buf = []
         for i, (images, labels) in enumerate(self.trainloader):
@@ -122,15 +131,16 @@ class Trainer(object):
             loss.backward()
             self.optimizer.step()
             loss_buf.append(loss.detach().cpu().numpy())
-            print('The %d-th batch finished: loss = %.3f' % (i, loss_buf[-1]))
+            if verbose:
+                print('The %d-th batch finished: loss = %.3f' % (i, loss_buf[-1]))
         
         return np.array(loss_buf).mean()
         
     def evaluate(self, dataloader):
         self.model.eval()
-        metrics = eval_kernel(self.model, dataloader, self.device)
+        metric_dict = eval_kernel(self.model, dataloader, self.device)
         self.model.train()
-        return metrics['accuracy']
+        return metric_dict
     
     def test(self, state_suffix, foldername, is_indiv=False, is_save_png=False, 
              seg_thres=0.5, cls_thres=0.5, is_cc=False):
@@ -142,16 +152,16 @@ class Trainer(object):
         
     def validate_final(self):
         '''Validate the model after training finished, detailed metrics would be recorded'''
-        train_metric = self.evaluate(self.trainseqloader)
-        val_metric = self.evaluate(self.valloader)
-        test_metric = self.evaluate(self.testloader)
+        train_metric = Metric(self.evaluate(self.trainseqloader), 'Train')
+        val_metric = Metric(self.evaluate(self.valloader), 'Val')
+        test_metric = Metric(self.evaluate(self.testloader), 'Test')
         
         return train_metric, val_metric, test_metric
                 
     def validate_online(self, epoch):
         '''Validate the model during training, record a minimal number of metrics'''
-        train_metric = self.evaluate(self.trainseqloader)
-        val_metric = self.evaluate(self.valloader)
+        train_metric = Metric(self.evaluate(self.trainseqloader), 'Train')
+        val_metric = Metric(self.evaluate(self.valloader), 'Val')
         
         return train_metric, val_metric
         

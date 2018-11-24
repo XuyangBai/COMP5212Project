@@ -102,11 +102,11 @@ def evaluate(trained_model, loader, device):
         # calculate the average precision and recall over all the classes
     precision = np.array(precisions).mean()
     recall = np.array(recalls).mean()
-    f1_score = 2 * (recall * precision) / (recall + precision)
+    f1_macro = 2 * (recall * precision) / (recall + precision)
     metric = {
 #        'hamming': np.mean(hamming_loss),
 #        'jaccard': np.mean(Jaccard_index),
-        'f1_score': f1_score,
+        'f1_macro': f1_macro,
         'accuracy': np.array(accuracy).mean(),
     }
     return metric
