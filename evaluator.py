@@ -28,19 +28,23 @@ The output of the model and test_label should be in the format of [batch_size , 
 #     return Ji_sum / outputs.shape[0]
 
 
-def __count_f1_score(outputs, targets):
-    precisions = []
-    recalls = []
+def __count_TP_P_T(outputs, targets):
+    tp_sum = []
+    p_sum = []
+    t_sum = []
     for i in range(28):
-        TP = (outputs[:, i] == targets[:, i]).sum()
-        P = outputs[:, i].sum()
-        T = targets[:, i].sum()
-        precisions.append(TP.float() / P.float())
-        recalls.append(TP.float() / T.float())
-    precision = np.array(precisions).mean()
-    recall = np.array(recalls).mean()
-    f1_score = 2 * (recall * precision) / (recall + precision)
-    return f1_score
+        tp = (outputs[:, i] == targets[:, i]).sum()
+        p = outputs[:, i].sum()
+        t = targets[:, i].sum()
+        tp_sum.append(tp)
+        p_sum.append(p)
+        t_sum.append(t)
+    metric = {
+        'tp_sum' : tp_sum,
+        'p_sum' : p_sum,
+        't_sum' : t_sum
+    }
+    return metric
     
 
 def __count_acc(outputs, targets):
@@ -61,12 +65,23 @@ def evaluate(trained_model, loader, device):
     ''' evaluate the net on the data in the loader '''
     model = trained_model
     accuracy = [[] for _ in range(28)]
+    TP_sum = []
+    P_sum = []
+    T_sum = []
+    recalls = []
+    precisions = []
     for i_batch, (images, labels) in enumerate(loader):
         images, labels = images.to(device), labels.to(device)
         labels = labels.byte()
         labels.squeeze_(dim=1)
         outputs = __forward_pass(model, images) >= 0
-        f1_score = __count_f1_score(outputs, labels)
+        metric = __count_TP_P_T(outputs, labels)
+        tp_sum = metric.get('tp_sum')
+        p_sum = metric.get('p_sum')
+        t_sum = metric.get('t_sum')
+        TP_sum.append(tp_sum)
+        P_sum.append(p_sum)
+        T_sum.append(t_sum)
         batch_acc = __count_acc(outputs, labels)
         for i in range(28):
             accuracy[i].append(batch_acc[i])
@@ -75,6 +90,19 @@ def evaluate(trained_model, loader, device):
     # calculate average accuracy for each class
     for i in range(28):
         accuracy[i] = np.mean(accuracy[i])
+
+    # calculate recall, precision and f1_score over all the test set
+    TP = [sum(x) for x in zip(*TP_sum)]
+    P = [sum(x) for x in zip(*P_sum)]
+    T = [sum(x) for x in zip(*T_sum)]
+        # for each class calculate precision and recall
+    for i in range(28):
+        precisions.append(TP[i].float() / P[i].float())
+        recalls.append(TP[i].float() / T[i].float())
+        # calculate the average precision and recall over all the classes
+    precision = np.array(precisions).mean()
+    recall = np.array(recalls).mean()
+    f1_score = 2 * (recall * precision) / (recall + precision)
     metric = {
 #        'hamming': np.mean(hamming_loss),
 #        'jaccard': np.mean(Jaccard_index),
