@@ -57,7 +57,7 @@ class evaluator:
 
     def evaluate(self):
         ''' evaluate the net on the data in the loader '''
-        outputs = self.__forward_pass()
+        outputs = self._forward_pass()
         self._count_hamming_loss(outputs, self.test_label)
         self._cout_Jaccard_index(outputs, self.test_label)
         self._count_precision_and_recall(outputs, self.test_label)
