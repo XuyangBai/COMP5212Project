@@ -18,7 +18,7 @@ def process_img(source, target):
                 sample = []
                 for color in colors:
                     im = Image.open(f'{source}/{img_id}_{color}.png')
-                    im = np.array(im, dtype=np.float32)
+                    im = np.array(im, dtype=np.int8)
                     im = np.expand_dims(im, axis=2)
                     sample.append(im)
                 im = np.concatenate(sample, axis=2)
