@@ -13,33 +13,35 @@ The output of the model and test_label should be in the format of [batch_size , 
 '''
 
 
-def __count_hamming_loss(outputs, targets):
-    hl_sum = 0
-    for i in outputs.shape[0]:
-        hl_sum += hamming_loss(targets[i], outputs[i])
-    return hl_sum / outputs.shape[0]
-
-
-def __cout_Jaccard_index(outputs, targets):
-    Ji_sum = 0
-    for i in outputs.shape[0]:
-        Ji_sum += jaccard_similarity_score(targets[i], outputs[i])
-    return Ji_sum / outputs.shape[0]
-
-
-# def __count_precision_and_recall(outputs, targets):
-#     pre_sum = 0
-#     rec_sum = 0
+# Not used in this project
+# def __count_hamming_loss(outputs, targets):
+#     hl_sum = 0
 #     for i in outputs.shape[0]:
-#         cm = confusion_matrix(targets[i], outputs[i])
-#         rec_sum += np.diag(cm) / np.sum(cm, axis=1)
-#         pre_sum += np.diag(cm) / np.sum(cm, axis=0)
-#     recall = rec_sum / outputs.shape[0]
-#     precision = pre_sum / outputs.shape[0]
-#     return recall, precision
-#
-# def __count_f1_score(self):
-#     self.f1_score = 2 * (precision * self.recall) / (self.precision + self.recall)
+#         hl_sum += hamming_loss(targets[i], outputs[i])
+#     return hl_sum / outputs.shape[0]
+
+
+# def __cout_Jaccard_index(outputs, targets):
+#     Ji_sum = 0
+#     for i in outputs.shape[0]:
+#         Ji_sum += jaccard_similarity_score(targets[i], outputs[i])
+#     return Ji_sum / outputs.shape[0]
+
+
+def __count_f1_score(outputs, targets):
+    precisions = []
+    recalls = []
+    for i in range(28):
+        TP = (outputs[:, i] == targets[:, i]).sum()
+        P = outputs[:, i].sum()
+        T = targets[:, i].sum()
+        precisions.append(TP.float() / P.float())
+        recalls.append(TP.float() / T.float())
+    precision = np.array(precisions).mean()
+    recall = np.array(recalls).mean()
+    f1_score = 2 * (recall * precision) / (recall + precision)
+    return f1_score
+    
 
 def __count_acc(outputs, targets):
     # [n,1,28]
@@ -50,8 +52,7 @@ def __count_acc(outputs, targets):
 
 
 def __forward_pass(model, input):
-    ''' forward in_ through the net, return outputs '''
-    ''' forward process of the trained model is defined as net_forward '''
+    ''' forward input through the net, return outputs '''
     outputs = model(input)
     return outputs
 
@@ -65,7 +66,7 @@ def evaluate(trained_model, loader, device):
         labels = labels.byte()
         labels.squeeze_(dim=1)
         outputs = __forward_pass(model, images) >= 0
-        
+        f1_score = __count_f1_score(outputs, labels)
         batch_acc = __count_acc(outputs, labels)
         for i in range(28):
             accuracy[i].append(batch_acc[i])
@@ -77,6 +78,7 @@ def evaluate(trained_model, loader, device):
     metric = {
 #        'hamming': np.mean(hamming_loss),
 #        'jaccard': np.mean(Jaccard_index),
+        'f1_score': f1_score,
         'accuracy': np.array(accuracy).mean(),
     }
     return metric
