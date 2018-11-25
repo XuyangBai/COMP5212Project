@@ -81,7 +81,7 @@ def get_data_loader(root, batch_size, split='train', sequential=False, num_worke
         transforms.ToTensor(),
         normalize
     ])
-    dset = HPA(root=root, transform=preprocess, split=split)
+    dset = HPA(root=root, split=split, transform=preprocess)
     if sequential is True:
         sampler = SequentialSampler(dset)
         loader = DataLoader(dset, batch_size=batch_size, num_workers=num_workers, sampler=sampler)

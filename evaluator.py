@@ -63,7 +63,7 @@ def __forward_pass(model, input):
 def evaluate(trained_model, loader, device):
     ''' evaluate the net on the data in the loader '''
     model = trained_model
-    accuracy = [[] for _ in range(28)]
+    accuracies = [[] for _ in range(28)]
     TP_sum = []
     P_sum = []
     T_sum = []
@@ -72,7 +72,6 @@ def evaluate(trained_model, loader, device):
     for i_batch, (images, labels) in enumerate(loader):
         images, labels = images.to(device), labels.to(device)
         labels = labels.byte()
-        labels.squeeze_(dim=1)
         images = images.float()
         outputs = __forward_pass(model, images) >= 0
         metric = __count_TP_P_T(outputs, labels)
@@ -84,12 +83,10 @@ def evaluate(trained_model, loader, device):
         T_sum.append(t_sum)
         batch_acc = __count_acc(outputs, labels)
         for i in range(28):
-            accuracy[i].append(batch_acc[i])
-#        hamming_loss.append(__count_hamming_loss(outputs, labels))
-#        Jaccard_index.append(__cout_Jaccard_index(outputs, labels))
+            accuracies[i].append(batch_acc[i])
     # calculate average accuracy for each class
     for i in range(28):
-        accuracy[i] = np.mean(accuracy[i])
+        accuracies[i] = np.mean(accuracies[i])
 
     # calculate recall, precision and f1_score over all the test set
 #    TP = [sum(x) for x in zip(*TP_sum)]
@@ -112,14 +109,25 @@ def evaluate(trained_model, loader, device):
             recalls.append(T[i].float())
         else:
             recalls.append(TP[i].float() / T[i].float())
-        # calculate the average precision and recall over all the classes
-    precision = np.array(precisions).mean()
-    recall = np.array(recalls).mean()
+    # calculate the average precision and recall over all the classes
+    accuracies = np.array(accuracies)
+    precisions, recalls = np.array(precisions), np.array(recalls)
+    precision = precisions.mean()
+    recall = recalls.mean()
     f1_score = 2 * (recall * precision) / (recall + precision)
     metric = {
 #        'hamming': np.mean(hamming_loss),
 #        'jaccard': np.mean(Jaccard_index),
         'f1_macro': f1_score,
-        'accuracy': np.array(accuracy).mean(),
+        'acc': accuracies.mean(),
+        'prec': precision,
+        'recl': recall,
+        'acc_all': accuracies,
+        'prec_all': precisions,
+        'recl_all': recalls,
     }
     return metric
+
+
+
+

@@ -25,32 +25,39 @@ timestr = time.strftime('%m%d%H%M')
 this_fname = 'train.py'
 
 verbose_output = False
-is_temp = True
+imagenet = False
+is_temp = False
+is_small = False
 
-train_bs, test_bs = 128, 256
+if is_small:
+    train_split, val_split, test_split = 'train-small', 'validation-small', 'test-small'
+else:
+    train_split, val_split, test_split = 'train', 'validation', 'test'
+train_bs, test_bs = 256, 512
+    
 data_root = '/home/rongzhao/projects/ml_kaggle_protein/data/npy'
-train_loader = get_data_loader(data_root, train_bs, split='train', sequential=False)
-val_loader = get_data_loader(data_root, train_bs, split='validation', sequential=True)
-test_loader = get_data_loader(data_root, train_bs, split='test', sequential=True)
-trainseq_loader = get_data_loader(data_root, train_bs, split='train', sequential=True)
+train_loader = get_data_loader(data_root, train_bs, split=train_split, sequential=False)
+val_loader = get_data_loader(data_root, train_bs, split=val_split, sequential=True)
+test_loader = get_data_loader(data_root, train_bs, split=test_split, sequential=True)
+trainseq_loader = get_data_loader(data_root, train_bs, split=train_split, sequential=True)
 
 data_cube = DataCube(train_loader, val_loader, test_loader, trainseq_loader)
 
-lr = 0.03
+lr = 0.1
 lr_scheme = {
         'base_lr': lr,
         'lr_policy': 'multistep',
 #        'lr_policy': 'step', 
         'gamma': 0.3,
-        'stepvalue': (30, 60, 90, ),
+        'stepvalue': (50, 90, 120, ),
 #        'stepsize': 1000,
-        'max_epoch': 100,
+        'max_epoch': 150,
         }
 #model = M.Toy_alpha(1, 2)
 #num_mo=3
 #experiment_id = 'Toy_%s' % timestr
 
-model = resnet18_protein()
+model = resnet18_protein(pretrain=imagenet)
 if is_temp:
     experiment_id = 'ResNet18_multitask_temp' #_%s' % timestr
 else:
@@ -60,7 +67,8 @@ model_cube = {
 #        'init_func': misc.weights_init,
         'pretrain': None,
         'resume': None,
-        'optimizer': optim.Adam(model.parameters(), lr=lr, weight_decay=5e-4),
+#        'optimizer': optim.Adam(model.parameters(), lr=lr, weight_decay=5e-4),
+        'optimizer': optim.SGD(model.parameters(), lr=lr, weight_decay=5e-4)
         }
 criterion_cube = {
         'criterion': nn.BCEWithLogitsLoss(weight=None)
@@ -84,7 +92,7 @@ writer_cube = {
 
 trainer = Trainer(model_cube, data_cube, criterion_cube, writer_cube, 
                   lr_scheme, snapshot_scheme, device)
-trainer.train('accuracy', verbose_output)
+trainer.train('acc', verbose_output)
 
 
 
