@@ -28,7 +28,7 @@ verbose_output = False
 is_temp = True
 
 train_bs, test_bs = 128, 256
-data_root = '/home/rongzhao/projects/ml_kaggle_protein/data/npy'
+data_root = 'npy'
 train_loader = get_data_loader(data_root, train_bs, split='train', sequential=False)
 val_loader = get_data_loader(data_root, train_bs, split='validation', sequential=True)
 test_loader = get_data_loader(data_root, train_bs, split='test', sequential=True)

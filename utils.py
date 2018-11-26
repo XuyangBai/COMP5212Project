@@ -15,7 +15,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 import torch.nn as nn
-from torchmed import transforms, datasets
+# from torchmed import transforms, datasets
 
 def timestr(form=None):
     if form is None:
@@ -83,7 +83,7 @@ class DataCube(object):
 
     def trainseqloader(self):
         return self._trainseqloader
-
+"""
 class DataHub_ProteinCls(object):
     def __init__(self, root, train_split, val_split, test_split, datapath, train_batchsize,
                  test_batchsize, modalities, std, mean,
@@ -245,3 +245,4 @@ class DataHub_ProteinCls(object):
 
     def test_sn(self):
         return self._test_sn
+"""

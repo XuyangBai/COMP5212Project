@@ -40,7 +40,7 @@ class HPA(data.Dataset):
         #     sample.append(im)
         # img = np.concatenate(sample, axis=2)
         img = np.load(f'{self.root}/{img_id}.npy')
-        return img
+        return img.astype(np.float32)
 
     def __getitem__(self, idx):
         img_id = self.img_ids[idx]
