@@ -1,7 +1,9 @@
 import csv
 import json
 import random
+
 random.seed(1)
+
 
 def parse_csv():
     class_to_ids = {}
@@ -19,7 +21,7 @@ def parse_csv():
             else:
                 labels = [int(n) for n in row[1].split(' ')]
                 for l in labels:
-                    class_to_ids[l].append(row[0])
+                    class_to_ids[l].append(str(line_count - 1) + "," + row[0])
                 line_count += 1
 
         print(f'Processed {line_count} lines.')
