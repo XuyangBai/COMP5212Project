@@ -18,8 +18,8 @@ import numpy as np
 #           'RandomTransverseFlip', 'RandomSagittalFlip', 'RandomVerticalFlip',
 #           'RandomFlip', 'RandomDropout', 'RandomBlack', ]
 
-def passthrough(img, label):
-    return img, label
+def passthrough(img):
+    return img
 
 def has_even(intseq):
     for i in intseq:
@@ -187,7 +187,7 @@ class Pad_cls(object):
         if len(size) == 3:
             self.padder = Pad3d_cls(size, pad_value)
         elif len(size) == 2:
-            self.padder = Pad2d(size, pad_value)
+            self.padder = Pad2d_cls(size, pad_value)
         else:
             raise RuntimeError('Invalid center crop size.')
 
@@ -240,51 +240,39 @@ class Lambda(object):
     def __call__(self, img, label):
         return self.lambd(img, label)
 
-class CenterCrop(object):
-    def __init__(self, size, size_label):
+class CenterCrop_cls(object):
+    def __init__(self, size):
         if len(size) == 3:
-            self.cropper = CenterCrop3d(size, size_label)
+            self.cropper = CenterCrop3d_cls(size)
         elif len(size) == 2:
-            self.cropper = CenterCrop2d(size, size_label)
+            self.cropper = CenterCrop2d_cls(size)
+        elif size == None:
+            self.cropper = passthrough
         else:
             raise RuntimeError('Invalid center crop size.')
 
-    def __call__(self, img, label):
-        return self.cropper(img, label)
+    def __call__(self, img):
+        return self.cropper(img)
 
-class CenterCrop3d(object):
-    def __init__(self, size, size_label=None):
+class CenterCrop3d_cls(object):
+    def __init__(self, size):
         if isinstance(size, numbers.Number):
             self.size = (int(size),) * 3
         else:
             self.size = size
-        if size_label is None:
-            self.size_label = self.size
-        elif isinstance(size_label, numbers.Number):
-            self.size_label = (int(size_label),) * 3
-        else:
-            self.size_label = size_label
 
     def __call__(self, img, label):
-        return center_crop(img, self.size), \
-               center_crop(label, self.size_label)
+        return center_crop(img, self.size)
 
-class CenterCrop2d(object):
-    def __init__(self, size, size_label=None):
+class CenterCrop2d_cls(object):
+    def __init__(self, size):
         if isinstance(size, numbers.Number):
             self.size = (int(size),) * 2
         else:
             self.size = size
-        if size_label is None:
-            self.size_label = self.size
-        elif isinstance(size_label, numbers.Number):
-            self.size_label = (int(size_label),) * 2
-        else:
-            self.size_label = size_label
 
     def __call__(self, img, label):
-        return center_crop(img, self.size), \
-               center_crop(label, self.size_label)
+        return center_crop(img, self.size)
 
 class RandomCrop_cls(object):
     """Crops the given (img, label) at a random location to have a region of
@@ -303,31 +291,31 @@ class RandomCrop_cls(object):
     def __call__(self, img):
         return self.cropper(img)
 
-class RandomCropMinSize(object):
-    """Crops the given (img, label) at a random location to be of the given size, 
-    while ensuring the number of positive pixels is either zero or larger than 
-    a minimal value. Size MUST be a 3-tuple (target_depth, target_height, target_width)
-    or a 2-tuple (target_height, target_width). The dimensionality is automatically
-    detected according to the length of the size tuple.
-    """
-    def __init__(self, size, mini_positive=0):
-        self.mini_positive = mini_positive
-        if len(size) == 3:
-            self.cropper = RandomCrop3d(size)
-        elif len(size) == 2:
-            self.cropper = RandomCrop2d(size)
-        else:
-            raise RuntimeError('Invalid random crop size.')
-
-    def __call__(self, img, label):
-        imgc, labelc = self.cropper(img, label)
-        count = 0
-        while(0 < labelc.sum() < self.mini_positive):
-            imgc, labelc = self.cropper(img, label)
-            count += 1
-        if count > 0:
-            print('Crop %d times for a valid positive size.' % count)
-        return imgc, labelc
+#class RandomCropMinSize(object):
+#    """Crops the given (img, label) at a random location to be of the given size, 
+#    while ensuring the number of positive pixels is either zero or larger than 
+#    a minimal value. Size MUST be a 3-tuple (target_depth, target_height, target_width)
+#    or a 2-tuple (target_height, target_width). The dimensionality is automatically
+#    detected according to the length of the size tuple.
+#    """
+#    def __init__(self, size, mini_positive=0):
+#        self.mini_positive = mini_positive
+#        if len(size) == 3:
+#            self.cropper = RandomCrop3d(size)
+#        elif len(size) == 2:
+#            self.cropper = RandomCrop2d(size)
+#        else:
+#            raise RuntimeError('Invalid random crop size.')
+#
+#    def __call__(self, img, label):
+#        imgc, labelc = self.cropper(img, label)
+#        count = 0
+#        while(0 < labelc.sum() < self.mini_positive):
+#            imgc, labelc = self.cropper(img, label)
+#            count += 1
+#        if count > 0:
+#            print('Crop %d times for a valid positive size.' % count)
+#        return imgc, labelc
 
 class RandomCrop3d_cls(object):
     """Crops the given (img, label) at a random location to have a region of
@@ -454,9 +442,9 @@ class RandomVerticalFlip_cls(object):
 class RandomFlip_cls(object):
     def __init__(self, axis_switch=None):
         if len(axis_switch) == 3:
-            self.flipper = RandomFlip3d(axis_switch)
+            self.flipper = RandomFlip3d_cls(axis_switch)
         elif len(axis_switch) == 2:
-            self.flipper = RandomFlip2d(axis_switch)
+            self.flipper = RandomFlip2d_cls(axis_switch)
         elif axis_switch == None:
             self.flipper = passthrough
         else:
@@ -465,7 +453,7 @@ class RandomFlip_cls(object):
     def __call__(self, img):
         return self.flipper(img)
 
-class RandomFlip3d(object):
+class RandomFlip3d_cls(object):
     def __init__(self, axis_switch=(1,1,1)):
         self.axis_switch = axis_switch
 
@@ -473,16 +461,13 @@ class RandomFlip3d(object):
         if self.axis_switch[0]:
             if random.randint(0,1) == 1:
                 img = flip_tensor(img, -3)
-                label = flip_tensor(label, -3)
         if self.axis_switch[1]:
             if random.randint(0,1) == 1:
                 img = flip_tensor(img, -2)
-                label = flip_tensor(label, -2)
         if self.axis_switch[2]:
             if random.randint(0,1) == 1:
                 img = flip_tensor(img, -1)
-                label = flip_tensor(label, -1)
-        return img, label
+        return img
 
 class RandomFlip2d_cls(object):
     def __init__(self, axis_switch=(1,1)):

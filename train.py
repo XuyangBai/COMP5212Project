@@ -15,9 +15,8 @@ from tensorboardX import SummaryWriter
 import os
 import os.path as P
 import shutil
-from utils import DataCube
 from model import resnet18_protein
-from dataloader import get_data_loader
+from dataloader import get_data_loader, DataHub
 
 
 device = torch.device('cuda:0')
@@ -34,14 +33,26 @@ if is_small:
 else:
     train_split, val_split, test_split = 'train', 'validation', 'test'
 train_bs, test_bs = 256, 512
-    
-data_root = '/home/rongzhao/projects/ml_kaggle_protein/data/npy'
-train_loader = get_data_loader(data_root, train_bs, split=train_split, sequential=False)
-val_loader = get_data_loader(data_root, train_bs, split=val_split, sequential=True)
-test_loader = get_data_loader(data_root, train_bs, split=test_split, sequential=True)
-trainseq_loader = get_data_loader(data_root, train_bs, split=train_split, sequential=True)
+model_name = 'ResNet18_multitask_testcrop'
 
-data_cube = DataCube(train_loader, val_loader, test_loader, trainseq_loader)
+data_root = '/home/rongzhao/projects/ml_kaggle_protein/data/npy'
+data_kw = {
+        'root': data_root,
+        'train_bs': train_bs,
+        'test_bs': test_bs,
+        'train_sp': train_split,
+        'val_sp': val_split,
+        'test_sp': test_split,
+        'mean': (13.528, 20.535, 14.249, 21.106),
+        'std': (28.700, 38.161, 40.196, 38.172),
+        'train_flip': (1, 1),
+        'train_crop' : (384, 384), 
+        'train_black': None, 
+        'test_crop': (384, 384), 
+        'num_workers': 4,
+        }
+
+data_cube = DataHub(**data_kw)
 
 lr = 0.1
 lr_scheme = {
@@ -49,19 +60,16 @@ lr_scheme = {
         'lr_policy': 'multistep',
 #        'lr_policy': 'step', 
         'gamma': 0.3,
-        'stepvalue': (50, 90, 120, ),
+        'stepvalue': (250, 400, 500, ),
 #        'stepsize': 1000,
-        'max_epoch': 150,
+        'max_epoch': 600,
         }
-#model = M.Toy_alpha(1, 2)
-#num_mo=3
-#experiment_id = 'Toy_%s' % timestr
 
 model = resnet18_protein(pretrain=imagenet)
 if is_temp:
-    experiment_id = 'ResNet18_multitask_temp' #_%s' % timestr
+    experiment_id = '%s_temp' % model_name #_%s' % timestr
 else:
-    experiment_id = 'ResNet18_multitask_%s' % timestr
+    experiment_id = '%s_%s' % (model_name, timestr)
 model_cube = {
         'model': model,
 #        'init_func': misc.weights_init,
@@ -92,7 +100,8 @@ writer_cube = {
 
 trainer = Trainer(model_cube, data_cube, criterion_cube, writer_cube, 
                   lr_scheme, snapshot_scheme, device)
-trainer.train('acc', verbose_output)
 
+train_m, val_m, test_m = trainer.train('f1_macro', verbose_output)
+#train_m, val_m, test_m = trainer.test('/home/rongzhao/projects/ml_kaggle_protein/snapshot/ResNet18_multitask_11252204/state_600.pkl')
 
 

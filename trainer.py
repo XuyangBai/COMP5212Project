@@ -120,6 +120,7 @@ class Trainer(object):
         val_metric.print()
         test_metric.print()
         self._snapshot(epoch, str(epoch))
+        return train_metric, val_metric, test_metric
         
     def train_epoch(self, verbose=False):
         '''Train the model for one epoch, return the average loss'''
@@ -146,13 +147,16 @@ class Trainer(object):
         self.model.train()
         return metric_dict
     
-    def test(self, state_suffix, foldername, is_indiv=False, is_save_png=False, 
-             seg_thres=0.5, cls_thres=0.5, is_cc=False):
+    def test(self, pretrain):
         '''Cordinate the testing of the model after training'''
-        save_dir = P.join(self.root, foldername)
-        pretrain = P.join(self.root, 'state_%s.pkl'%state_suffix)
+#        save_dir = P.join(self.root, foldername)
+#        pretrain = P.join(self.root, 'state_%s.pkl'%state_suffix)
         self._load_pretrain(pretrain)
-        self.validate_final(save_dir, is_indiv, is_save_png, seg_thres, cls_thres, is_cc)
+        train_metric, val_metric, test_metric = self.validate_final()
+        train_metric.print()
+        val_metric.print()
+        test_metric.print()
+        return train_metric, val_metric, test_metric
         
     def validate_final(self):
         '''Validate the model after training finished, detailed metrics would be recorded'''
