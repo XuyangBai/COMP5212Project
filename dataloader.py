@@ -4,6 +4,7 @@ import PIL
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import Sampler, SequentialSampler
+import transforms as mytfm
 import torchvision.transforms as transforms
 
 from dataset import HPA
@@ -79,9 +80,11 @@ def get_data_loader(root, batch_size, split='train', sequential=False, num_worke
         # transforms.Resize(128, PIL.Image.BILINEAR),
         # transforms.RandomCrop(224),
         transforms.ToTensor(),
+        mytfm.RandomFlip2d_cls((1,1)),
+        mytfm.RandomCrop2d_cls((384,384)),
         normalize
     ])
-    dset = HPA(root=root, transform=preprocess, split=split)
+    dset = HPA(root=root, split=split, transform=preprocess)
     if sequential is True:
         sampler = SequentialSampler(dset)
         loader = DataLoader(dset, batch_size=batch_size, num_workers=num_workers, sampler=sampler)

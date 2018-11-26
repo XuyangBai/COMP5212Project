@@ -13,6 +13,7 @@ import os.path as P
 from model import resnet18_protein
 from utils import timestr, adjust_opt
 from evaluator import evaluate as eval_kernel
+import collections
 
 class Dummy_Dataloader(object):
     '''Create a dummy dataloader to test trainer'''
@@ -43,6 +44,8 @@ class Metric(object):
     def print(self):
         pstr = ''
         for k, v in self.dict.items():
+            if isinstance(v, collections.Iterable):
+                continue
             pstr += '%s = %.3f ' % (k, v)
         print(self.split + ': ' + pstr)
 
@@ -72,6 +75,8 @@ class Trainer(object):
         
     def tb_write_scalar(self, metric, epoch):        
         for k, v in metric.dict.items():
+            if isinstance(v, collections.Iterable):
+                continue
             self.writer.add_scalar('%s/%s' % (metric.split, k), v, epoch)
         
     def train(self, metricOI='f1_macro', verbose=False):
@@ -122,8 +127,6 @@ class Trainer(object):
         for i, (images, labels) in enumerate(self.trainloader):
             # images (N, C, H, W) => (N, 28), labels (N, 28)
             images, labels = images.to(self.device), labels.to(self.device)
-            labels.squeeze_(dim=1)
-            labels = labels.float()
             self.optimizer.zero_grad()
             out = self.model(images)
             criterion = nn.BCEWithLogitsLoss(self.task_weight)
@@ -138,7 +141,8 @@ class Trainer(object):
         
     def evaluate(self, dataloader):
         self.model.eval()
-        metric_dict = eval_kernel(self.model, dataloader, self.device)
+        with torch.no_grad():
+            metric_dict = eval_kernel(self.model, dataloader, self.device)
         self.model.train()
         return metric_dict
     
