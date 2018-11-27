@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Nov 23 21:11:22 2018
+Created on Mon Nov 26 23:54:24 2018
 
 @author: rongzhao
 """
@@ -10,7 +10,7 @@ import time
 import torch
 import torch.nn as nn
 from torch import optim
-from trainer import Trainer
+from trainer_meta import Trainer_Meta
 from tensorboardX import SummaryWriter
 import os
 import os.path as P
@@ -21,7 +21,7 @@ from dataloader import get_data_loader, DataHub
 
 device = torch.device('cuda:0')
 timestr = time.strftime('%m%d%H%M')
-this_fname = 'train.py'
+this_fname = 'train_meta.py'
 
 verbose_output = False
 imagenet = False
@@ -33,7 +33,7 @@ if is_small:
 else:
     train_split, val_split, test_split = 'train', 'validation', 'test'
 train_bs, test_bs = 256, 512
-model_name = 'ResNet18_multitask_meta1'
+model_name = 'ResNet18_multitask_meta'
 
 data_root = '/home/rongzhao/projects/ml_kaggle_protein/data/npy'
 data_kw = {
@@ -54,29 +54,43 @@ data_kw = {
 
 data_cube = DataHub(**data_kw)
 
-lr = 0.05
+lr = 1
 lr_scheme = {
         'base_lr': lr,
         'lr_policy': 'multistep',
-#        'lr_policy': 'step', 
         'gamma': 0.3,
-        'stepvalue': (100, 200, 300, ),
-#        'stepsize': 1000,
-        'max_epoch': 400,
+        'stepvalue': (250, 400, 500, ),
+        'max_epoch': 600,
+        }
+lr_inner = 0.1
+lr_scheme_inner = {
+        'base_lr': lr_inner,
+        'lr_policy': 'multistep',
+        'gamma': 0.3,
+        'stepvalue': (250, 400, 500, ),
+        'max_epoch': 600,
+        }
+lr_cube = {
+        'lr_scheme': lr_scheme,
+        'lr_scheme_inner': lr_scheme_inner,
+        'k': 5,
         }
 
 model = ResNet18_Protein(pretrain=imagenet)
+model_inner = ResNet18_Protein(pretrain=imagenet)
 if is_temp:
     experiment_id = '%s_temp' % model_name #_%s' % timestr
 else:
     experiment_id = '%s_%s' % (model_name, timestr)
 model_cube = {
         'model': model,
+        'model_inner': model_inner,
 #        'init_func': misc.weights_init,
-        'pretrain': '/home/rongzhao/projects/ml_kaggle_protein/snapshot/ResNet18_multitask_meta_11270113/state_500.pkl',
+        'pretrain': None,
         'resume': None,
 #        'optimizer': optim.Adam(model.parameters(), lr=lr, weight_decay=5e-4),
-        'optimizer': optim.SGD(model.parameters(), lr=lr, weight_decay=5e-4)
+        'optimizer': optim.SGD(model.parameters(), lr=lr),
+        'optimizer_inner': optim.SGD(model_inner.parameters(), lr=lr_inner, weight_decay=5e-4),
         }
 criterion_cube = {
         'criterion': nn.BCEWithLogitsLoss(weight=None)
@@ -88,7 +102,7 @@ shutil.copy2(P.join('.', this_fname), P.join(snapshot_root, this_fname))
 
 snapshot_scheme = {
         'root': snapshot_root,
-        'display_interval': 1,
+        'display_interval': 10,
         'val_interval': 10,
         'snapshot_interval': 999999,
         }
@@ -98,8 +112,8 @@ writer_cube = {
         'writer': writer,
         }
 
-trainer = Trainer(model_cube, data_cube, criterion_cube, writer_cube, 
-                  lr_scheme, snapshot_scheme, device)
+trainer = Trainer_Meta(model_cube, data_cube, criterion_cube, writer_cube, 
+                  lr_cube, snapshot_scheme, device)
 
 train_m, val_m, test_m = trainer.train('f1_macro', verbose_output)
 #train_m, val_m, test_m = trainer.test('/home/rongzhao/projects/ml_kaggle_protein/snapshot/ResNet18_multitask_11252204/state_600.pkl')
