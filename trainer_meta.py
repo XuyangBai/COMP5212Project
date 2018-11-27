@@ -119,6 +119,7 @@ class Trainer_Meta(object):
         for i, (images, labels) in enumerate(self.trainloader, 1):
             # images (N, C, H, W) => (N, 28), labels (N, 28)
             images, labels = images.to(self.device), labels.to(self.device)
+            self.model_inner.copy_state(self.model)
             self.optimizer_inner.zero_grad()
             out = self.model_inner(images)
             criterion = nn.BCEWithLogitsLoss(self.task_weight)
