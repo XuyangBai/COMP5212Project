@@ -9,10 +9,10 @@ import torchvision.transforms as transforms
 import json
 from dataset import HPA
 
-torch.multiprocessing.freeze_support()
+# torch.multiprocessing.freeze_support()
 
 
-def get_sampler(split, inst_num, prob=None):
+def get_sampler(split, inst_num=None, prob=None):
     if prob is None:
         with open('prob.json', 'r') as f:
             class_to_prob = json.load(f)
@@ -23,17 +23,19 @@ def get_sampler(split, inst_num, prob=None):
     with open(f'preprocess/{class_id}.txt', 'r') as f:
         instance_ids = f.readlines()
         instance_ids = [int(id.split(",")[0]) for id in instance_ids]
-    with open(f'{split}.csv', 'r') as f:
-        all_instances_id = f.readlines()
-
-    train_ids = instance_ids
-    train_ids_other = np.random.choice(np.arange(len(all_instances_id)), inst_num - len(instance_ids))
-    all = np.concatenate((train_ids, train_ids_other), axis=0)
+    if inst_num is None:
+        all = np.array(instance_ids)
+    else:
+        with open(f'{split}.csv', 'r') as f:
+            all_instances_id = f.readlines()
+        train_ids = instance_ids
+        train_ids_other = np.random.choice(np.arange(len(all_instances_id)), inst_num - len(instance_ids))
+        all = np.concatenate((train_ids, train_ids_other), axis=0)
     np.random.shuffle(all)
     return SubsetRandomSampler(all), class_id
 
 
-def get_data_loader_meta_learning(root, batch_size, preprocess, split='train', inst_num=256, sequential=False, num_workers=4,
+def get_data_loader_meta_learning(root, batch_size, preprocess, split='train', inst_num=None, sequential=False, num_workers=4,
                                   prob=None):
     dset = HPA(root=root, split='all', transform=preprocess)
     sampler, class_id = get_sampler(split=split, inst_num=inst_num, prob=prob)
@@ -77,7 +79,7 @@ class DataHub(object):
     def trainseqloader(self):
         return self._trainseqloader
 
-    def taskloader(self, inst_num=256, prob=None):
+    def taskloader(self, inst_num=None, prob=None):
         return get_data_loader_meta_learning(self.root, self.train_bs, 'train', inst_num, self.train_tfm, False,
                                              self.num_workers, prob)
 
