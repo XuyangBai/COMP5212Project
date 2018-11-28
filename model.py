@@ -64,10 +64,10 @@ class ResNet18_Protein(nn.Module):
     def accum_grad(self, src_model, k, lr_inner):
         name_to_param = dict(self.named_parameters())
         for name, param in src_model.named_parameters():
-            cur_grad = (param.grad.data) / k / lr_inner
+            cur_grad = (param.grad.detach()) / k / lr_inner
             if name_to_param[name].grad is None:
                 name_to_param[name].grad = torch.zeros(cur_grad.size())
-            name_to_param[name].grad.data.add_(cur_grad)
+            name_to_param[name].grad.detach().add_(cur_grad)
     
 #t = time.time()
 #v = torch.ones(128, 4, 512, 512)

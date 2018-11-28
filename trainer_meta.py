@@ -62,7 +62,7 @@ class Trainer_Meta(object):
         loss_all = []
         max_metric = 0
         print(timestr(), 'Optimization Begin')
-        
+        self.model_inner.copy_state(self.model)
         for epoch in range(self.start_epoch, self.max_epoch+1):
             # Adjust learning rate
             adjust_opt(self.optimizer, epoch-1, **self.lr_scheme)
@@ -96,8 +96,8 @@ class Trainer_Meta(object):
             if self.writer:
                 self.writer.add_scalar('Learning Rate', self._get_lr(), epoch)
                 self.writer.add_scalar('Loss', loss, epoch)
-                self.tb_write_scalar(train_metric, epoch)
-                self.tb_write_scalar(val_metric, epoch)
+                self.tb_write_scalar(train_metric_in, epoch)
+                self.tb_write_scalar(val_metric_in, epoch)
                     
         train_metric, val_metric, test_metric = self.validate_final(self.model)
         train_metric.print()
@@ -115,11 +115,10 @@ class Trainer_Meta(object):
     def train_epoch(self, verbose=False):
         '''Train the model for one epoch, return the average loss'''
         loss_buf = []
-        
+        self.model_inner.copy_state(self.model)
         for i, (images, labels) in enumerate(self.trainloader, 1):
             # images (N, C, H, W) => (N, 28), labels (N, 28)
             images, labels = images.to(self.device), labels.to(self.device)
-            self.model_inner.copy_state(self.model)
             self.optimizer_inner.zero_grad()
             out = self.model_inner(images)
             criterion = nn.BCEWithLogitsLoss(self.task_weight)
@@ -127,21 +126,27 @@ class Trainer_Meta(object):
             loss.backward()
             self.optimizer_inner.step()
             # Accumulate gradient in outer model
-            self.model.accum_grad(self.model_inner, self.k, self.lr_inner)
-            if i % self.k == 0:
-                self.optimizer.step()
-                self.optimizer.zero_grad()
+            self.model.accum_grad(self.model_inner, len(self.trainloader), self.lr_inner)
+#            if i % self.k == 0:
+#                self.optimizer.step()
+#                self.optimizer.zero_grad()
+#                if len(self.trainloader) - i >= self.k:
+#                    self.model_inner.copy_state(self.model)
+#                else: 
+#                    break
             
             loss_buf.append(loss.detach().cpu().numpy())
             if verbose:
                 print('The %d-th batch finished: loss = %.3f' % (i, loss_buf[-1]))
-        
+        # Update outer model once per epoch
+        self.optimizer.step()
+        self.optimizer.zero_grad()
         return np.array(loss_buf).mean()
     
     def evaluate(self, model, dataloader):
         model.eval()
         with torch.no_grad():
-            metric_dict = eval_kernel(self.model, dataloader, self.device)
+            metric_dict = eval_kernel(model, dataloader, self.device)
         model.train()
         return metric_dict
     

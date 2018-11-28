@@ -76,7 +76,7 @@ model_cube = {
         'pretrain': '/home/rongzhao/projects/ml_kaggle_protein/snapshot/ResNet18_multitask_meta_11270113/state_500.pkl',
         'resume': None,
 #        'optimizer': optim.Adam(model.parameters(), lr=lr, weight_decay=5e-4),
-        'optimizer': optim.SGD(model.parameters(), lr=lr, weight_decay=5e-4)
+        'optimizer': optim.SGD(model.parameters(), lr=lr, weight_decay=5e-4, momentum=0.9)
         }
 criterion_cube = {
         'criterion': nn.BCEWithLogitsLoss(weight=None)

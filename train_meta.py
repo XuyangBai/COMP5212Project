@@ -33,7 +33,7 @@ if is_small:
 else:
     train_split, val_split, test_split = 'train', 'validation', 'test'
 train_bs, test_bs = 256, 512
-model_name = 'ResNet18_multitask_meta'
+model_name = 'ResNet18_multitask_meta_epoch'
 
 data_root = '/home/rongzhao/projects/ml_kaggle_protein/data/npy'
 data_kw = {
@@ -54,7 +54,7 @@ data_kw = {
 
 data_cube = DataHub(**data_kw)
 
-lr = 1
+lr = .1
 lr_scheme = {
         'base_lr': lr,
         'lr_policy': 'multistep',
@@ -62,7 +62,7 @@ lr_scheme = {
         'stepvalue': (250, 400, 500, ),
         'max_epoch': 600,
         }
-lr_inner = 0.1
+lr_inner = .1
 lr_scheme_inner = {
         'base_lr': lr_inner,
         'lr_policy': 'multistep',
@@ -73,7 +73,7 @@ lr_scheme_inner = {
 lr_cube = {
         'lr_scheme': lr_scheme,
         'lr_scheme_inner': lr_scheme_inner,
-        'k': 5,
+        'k': 10,
         }
 
 model = ResNet18_Protein(pretrain=imagenet)
@@ -90,7 +90,8 @@ model_cube = {
         'resume': None,
 #        'optimizer': optim.Adam(model.parameters(), lr=lr, weight_decay=5e-4),
         'optimizer': optim.SGD(model.parameters(), lr=lr),
-        'optimizer_inner': optim.SGD(model_inner.parameters(), lr=lr_inner, weight_decay=5e-4),
+        'optimizer_inner': optim.SGD(model_inner.parameters(), lr=lr_inner, 
+                                     weight_decay=1e-5, momentum=0.9),
         }
 criterion_cube = {
         'criterion': nn.BCEWithLogitsLoss(weight=None)
