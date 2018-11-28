@@ -19,8 +19,8 @@ import torch.nn as nn
 import json
 
 
-def get_primitive_prob():
-    with open('prob.json', 'r') as f:
+def get_primitive_prob(path='prob.json'):
+    with open(path, 'r') as f:
         class_to_prob = json.load(f)
     prob = [v for k, v in class_to_prob.items()]
     prob[-1] = 1 - sum(prob[0:-1])
