@@ -116,12 +116,14 @@ class Trainer_Meta(object):
         '''Train the model for one epoch, return the average loss'''
         loss_buf = []
         self.model_inner.copy_state(self.model)
-        for i, (images, labels) in enumerate(self.trainloader, 1):
+        trainloader, cls_id, cls_id_v = self.datahub.taskloader(self.min_batchsz, self.task_prob)
+        cls_id_v = torch.FloatTensor(cls_id_v).to(self.device)
+        criterion = nn.BCEWithLogitsLoss(cls_id_v)
+        for i, (images, labels) in enumerate(trainloader, 1):
             # images (N, C, H, W) => (N, 28), labels (N, 28)
             images, labels = images.to(self.device), labels.to(self.device)
             self.optimizer_inner.zero_grad()
             out = self.model_inner(images)
-            criterion = nn.BCEWithLogitsLoss(self.task_weight)
             loss = criterion(out, labels)
             loss.backward()
             self.optimizer_inner.step()
@@ -146,7 +148,7 @@ class Trainer_Meta(object):
     def evaluate(self, model, dataloader):
         model.eval()
         with torch.no_grad():
-            metric_dict = eval_kernel(model, dataloader, self.device)
+            metric_dict = eval_kernel(model, dataloader, self.device, self.task_mask)
         model.train()
         return metric_dict
     
@@ -206,10 +208,14 @@ class Trainer_Meta(object):
         return model, model_inner, optimizer, optimizer_inner, start_epoch
     
     def parse_dataloader(self, data_cube):
-        self.trainloader = data_cube.trainloader()
-        self.valloader= data_cube.valloader()
-        self.testloader = data_cube.testloader()
-        self.trainseqloader = data_cube.trainseqloader()
+        self.datahub = datahub = data_cube['datahub']
+        self.trainloader = datahub.trainloader()
+        self.valloader= datahub.valloader()
+        self.testloader = datahub.testloader()
+        self.trainseqloader = datahub.trainseqloader()
+        self.min_batchsz = data_cube['min_batchsz']
+        self.task_prob = data_cube['task_prob']
+        self.task_mask = data_cube['task_mask']
 #        self.val_sn = data_cube.val_sn()
 #        self.test_sn = data_cube.test_sn()
 #        self.train_sn = data_cube.train_sn()

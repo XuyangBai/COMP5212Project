@@ -60,9 +60,15 @@ def __forward_pass(model, input):
     return outputs
 
 
-def evaluate(trained_model, loader, device):
+def evaluate(trained_model, loader, device, task_mask=None):
     ''' evaluate the net on the data in the loader '''
     model = trained_model
+    if task_mask is not None:
+        task_mask = np.array(task_mask)
+        task_weight = np.array(task_mask) / task_mask.sum()
+    else:
+        task_weight = np.ones(28)/28
+        
     accuracies = [[] for _ in range(28)]
     TP_sum = []
     P_sum = []
@@ -112,14 +118,14 @@ def evaluate(trained_model, loader, device):
     # calculate the average precision and recall over all the classes
     accuracies = np.array(accuracies)
     precisions, recalls = np.array(precisions), np.array(recalls)
-    precision = precisions.mean()
-    recall = recalls.mean()
+    precision = (precisions*task_weight).sum()
+    recall = (recalls*task_weight).sum()
     f1_score = 2 * (recall * precision) / (recall + precision)
     metric = {
 #        'hamming': np.mean(hamming_loss),
 #        'jaccard': np.mean(Jaccard_index),
         'f1_macro': f1_score,
-        'acc': accuracies.mean(),
+        'acc': (accuracies*task_weight).sum(),
         'prec': precision,
         'recl': recall,
         'acc_all': accuracies,

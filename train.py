@@ -52,7 +52,10 @@ data_kw = {
         'num_workers': 4,
         }
 
-data_cube = DataHub(**data_kw)
+data_cube = {
+        'datahub': DataHub(**data_kw),
+        'task_mask': [1]*28,
+        }
 
 lr = 0.05
 lr_scheme = {

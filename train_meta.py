@@ -11,10 +11,13 @@ import torch
 import torch.nn as nn
 from torch import optim
 from trainer_meta import Trainer_Meta
+from trainer import Trainer
 from tensorboardX import SummaryWriter
 import os
 import os.path as P
+import numpy as np
 import shutil
+from utils import get_primitive_prob, normalize
 from model import ResNet18_Protein
 from dataloader import get_data_loader, DataHub
 
@@ -25,15 +28,18 @@ this_fname = 'train_meta.py'
 
 verbose_output = False
 imagenet = False
-is_temp = False
-is_small = False
+first14 = False
+is_temp = True
+is_small = True
 
 if is_small:
     train_split, val_split, test_split = 'train-small', 'validation-small', 'test-small'
+    train_bs, test_bs = 16, 16
 else:
     train_split, val_split, test_split = 'train', 'validation', 'test'
-train_bs, test_bs = 256, 512
-model_name = 'ResNet18_multitask_meta_epoch'
+    train_bs, test_bs = 256, 512
+
+model_name = 'ResNet18_multitask_meta'
 
 data_root = '/home/rongzhao/projects/ml_kaggle_protein/data/npy'
 data_kw = {
@@ -52,7 +58,19 @@ data_kw = {
         'num_workers': 4,
         }
 
-data_cube = DataHub(**data_kw)
+task_prim_prob = get_primitive_prob('prob.json')
+if first14:
+    mask_meta = [1.]*14 + [0.]*14
+    mask_ft = [0.]*14 + [1.]*14
+else:
+    mask_meta = mask_ft = [1.] * 28
+
+data_cube = {
+        'datahub': DataHub(**data_kw),
+        'min_batchsz': None, 
+        'task_prob': normalize(task_prim_prob, mask_meta),
+        'task_mask': mask_meta,
+        }
 
 lr = .1
 lr_scheme = {
@@ -60,7 +78,7 @@ lr_scheme = {
         'lr_policy': 'multistep',
         'gamma': 0.3,
         'stepvalue': (250, 400, 500, ),
-        'max_epoch': 600,
+        'max_epoch': 60,
         }
 lr_inner = .1
 lr_scheme_inner = {
@@ -68,7 +86,7 @@ lr_scheme_inner = {
         'lr_policy': 'multistep',
         'gamma': 0.3,
         'stepvalue': (250, 400, 500, ),
-        'max_epoch': 600,
+        'max_epoch': 60,
         }
 lr_cube = {
         'lr_scheme': lr_scheme,
@@ -113,10 +131,61 @@ writer_cube = {
         'writer': writer,
         }
 
-trainer = Trainer_Meta(model_cube, data_cube, criterion_cube, writer_cube, 
+trainer_meta = Trainer_Meta(model_cube, data_cube, criterion_cube, writer_cube, 
                   lr_cube, snapshot_scheme, device)
 
-train_m, val_m, test_m = trainer.train('f1_macro', verbose_output)
+train_m, val_m, test_m = trainer_meta.train('f1_macro', verbose_output)
 #train_m, val_m, test_m = trainer.test('/home/rongzhao/projects/ml_kaggle_protein/snapshot/ResNet18_multitask_11252204/state_600.pkl')
+
+####################  Finetune Part  ####################
+data_cube_ft = {
+        'datahub': DataHub(**data_kw),
+        'task_mask': mask_ft,
+        }
+
+lr_ft = .1
+lr_scheme_ft = {
+        'base_lr': lr_ft,
+        'lr_policy': 'multistep',
+        'gamma': 0.3,
+        'stepvalue': (10, 20, 30, ),
+        'max_epoch': 40,
+        }
+lr_cube_ft = {
+        'lr_scheme': lr_scheme_ft,
+        }
+experiment_id_ft = experiment_id + '_ft'
+model_cube_ft = {
+        'model': model,
+        'pretrain': '%s/state_max.pkl' % snapshot_root,
+        'resume': None,
+#        'optimizer': optim.Adam(model.parameters(), lr=lr, weight_decay=5e-4),
+        'optimizer': model_cube['optimizer_inner'],
+        }
+criterion_cube_ft = {
+        'criterion': nn.BCEWithLogitsLoss(weight=None)
+        }
+
+snapshot_root_ft = '../snapshot/%s' % (experiment_id_ft)
+os.makedirs(snapshot_root, exist_ok=True)
+shutil.copy2(P.join('.', this_fname), P.join(snapshot_root, this_fname))
+
+snapshot_scheme_ft = {
+        'root': snapshot_root,
+        'display_interval': 10,
+        'val_interval': 10,
+        'snapshot_interval': 999999,
+        }
+
+writer_ft = SummaryWriter(log_dir='../tboard/%s' % (experiment_id_ft))
+writer_cube_ft = {
+        'writer': writer_ft,
+        }
+
+trainer = Trainer(model_cube_ft, data_cube_ft, criterion_cube_ft, writer_cube_ft, 
+                  lr_cube_ft, snapshot_scheme_ft, device)
+
+train_m, val_m, test_m = trainer.train('f1_macro', verbose_output)
+
 
 

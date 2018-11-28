@@ -53,7 +53,7 @@ class Metric(object):
 class Trainer(object):
     '''A functional class facilitating and supporting all procedures in training phase'''
     def __init__(self, model_cube, data_cube, criterion_cube, writer_cube, 
-                 lr_scheme, snapshot_scheme, device, wrap_test=False, task_weight=None):
+                 lr_cube, snapshot_scheme, device, wrap_test=False, task_weight=None):
         self.model, self.optimizer, self.start_epoch = \
             self.init_model(model_cube) # Initialize model
 #        if model_cube['resume']:
@@ -61,16 +61,16 @@ class Trainer(object):
         self.parse_dataloader(data_cube)
         self.parse_criterion(criterion_cube)
         self.parse_writer(writer_cube)
-        self.lr_scheme = lr_scheme
+        self.lr_scheme = lr_cube['lr_scheme']
         self.snapshot_scheme = snapshot_scheme
-        self.max_epoch = lr_scheme['max_epoch'] if not wrap_test else 0
+        self.max_epoch = self.lr_scheme['max_epoch'] if not wrap_test else 0
         self.root = snapshot_scheme['root']
         self.device = device
         self.task_weight = task_weight
         
         if not wrap_test:
             with open( P.join(self.root, 'description.txt'), 'w' ) as f:
-                f.write(str(lr_scheme) + '\n' + str(snapshot_scheme) + '\n' + str(self.model))
+                f.write(str(self.lr_scheme) + '\n' + str(snapshot_scheme) + '\n' + str(self.model))
         self.model.to(self.device)
         self.model.train()
         
@@ -144,7 +144,7 @@ class Trainer(object):
     def evaluate(self, dataloader):
         self.model.eval()
         with torch.no_grad():
-            metric_dict = eval_kernel(self.model, dataloader, self.device)
+            metric_dict = eval_kernel(self.model, dataloader, self.device, self.task_mask)
         self.model.train()
         return metric_dict
     
@@ -202,10 +202,14 @@ class Trainer(object):
         return model, optimizer, start_epoch
     
     def parse_dataloader(self, data_cube):
-        self.trainloader = data_cube.trainloader()
-        self.valloader= data_cube.valloader()
-        self.testloader = data_cube.testloader()
-        self.trainseqloader = data_cube.trainseqloader()
+        self.datahub = datahub = data_cube['datahub']
+        self.task_mask = data_cube['task_mask']
+        self.trainloader = datahub.trainloader()
+        self.valloader= datahub.valloader()
+        self.testloader = datahub.testloader()
+        self.trainseqloader = datahub.trainseqloader()
+#        self.min_batchsz = data_cube['min_batchsz']
+#        self.task_prob = data_cube['task_prob']
 #        self.val_sn = data_cube.val_sn()
 #        self.test_sn = data_cube.test_sn()
 #        self.train_sn = data_cube.train_sn()

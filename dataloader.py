@@ -18,6 +18,8 @@ def get_sampler(split, min_batchsz=None, prob=None):
         prob = [v for k, v in class_to_prob.items()]
         prob[-1] = 1 - sum(prob[0:-1])
     class_id = int(np.random.choice(range(28), p=prob))
+    class_id_v = np.zeros(28)
+    class_id_v[class_id] = 1.
     # Sample num_inst instances from selected class & num_inst from other selected class
     with open(f'preprocess/{class_id}.txt', 'r') as f:
         instance_ids = f.readlines()
@@ -34,15 +36,15 @@ def get_sampler(split, min_batchsz=None, prob=None):
             train_ids_other = np.random.choice(np.arange(len(all_instances_id)), min_batchsz - len(instance_ids))
             all = np.concatenate((train_ids, train_ids_other), axis=0)
     np.random.shuffle(all)
-    return SubsetRandomSampler(all), class_id
+    return SubsetRandomSampler(all), class_id, class_id_v
 
 
-def get_data_loader_meta_learning(root, batch_size, preprocess, split='train', inst_num=None, sequential=False, num_workers=4,
+def get_data_loader_meta_learning(root, batch_size, preprocess, split='train', min_batchsz=None, sequential=False, num_workers=4,
                                   prob=None):
     dset = HPA(root=root, split=split, transform=preprocess)
-    sampler, class_id = get_sampler(split=split, inst_num=inst_num, prob=prob)
+    sampler, class_id, class_id_v = get_sampler(split=split, min_batchsz=min_batchsz, prob=prob)
     loader = DataLoader(dset, batch_size=batch_size, sampler=sampler, num_workers=num_workers)
-    return loader, class_id
+    return loader, class_id, class_id_v
 
 
 class DataHub(object):
@@ -52,6 +54,7 @@ class DataHub(object):
                  train_flip=None, train_crop=None, train_black=None, test_crop=None,
                  num_workers=4):
         self.root = root
+        self.train_sp = train_sp
         self.train_bs = train_bs
         self.num_workers = num_workers
         self._base_tfm = [transforms.ToTensor(),
@@ -83,7 +86,8 @@ class DataHub(object):
         return self._trainseqloader
 
     def taskloader(self, inst_num=None, prob=None):
-        return get_data_loader_meta_learning(self.root, self.train_bs, self.train_tfm, 'train', inst_num, False,
+        return get_data_loader_meta_learning(self.root, self.train_bs, self.train_tfm, 
+                                             self.train_sp, inst_num, False,
                                              self.num_workers, prob)
 
     def get_train_tfm(self, train_flip, train_crop, train_black):
@@ -121,7 +125,7 @@ class DataHub(object):
                 else:
                     labels = [int(n) for n in row[1].split(' ')]
                     for l in labels:
-                        class_to_ids[l].append(str(line_count - 1) + "," + row[0])
+                        class_to_ids[l].append(str(line_count-1) + ',' + row[0])
                     line_count += 1
 
             print(f'Processed {line_count} lines.')
@@ -145,6 +149,23 @@ class DataHub(object):
 
 def get_data_loader(root, batch_size, preprocess, split='train', sequential=False,
                     num_workers=4):
+    # # G R B Y
+    # mean = [13.528, 20.535, 14.249, 21.106]
+    # std = [28.700, 38.161, 40.196, 38.172]
+    # # mean =  [x / 255.0 for x in [13.528, 20.535, 14.249, 21.106]]
+    # # std = [x / 255.0 for x in [28.700, 38.161, 40.196, 38.172]]
+    # normalize = transforms.Normalize(
+    #     mean=mean,
+    #     std=std
+    # )
+    # preprocess = transforms.Compose([
+    #     # transforms.Resize(128, PIL.Image.BILINEAR),
+    #     # transforms.RandomCrop(224),
+    #     transforms.ToTensor(),
+    #     mytfm.RandomFlip2d_cls((1, 1)),
+    #     mytfm.RandomCrop2d_cls((384, 384)),
+    #     normalize
+    # ])
     dset = HPA(root=root, split=split, transform=preprocess)
     if sequential is True:
         sampler = SequentialSampler(dset)
