@@ -121,7 +121,7 @@ class DataHub(object):
                 else:
                     labels = [int(n) for n in row[1].split(' ')]
                     for l in labels:
-                        class_to_ids[l].append(row[0])
+                        class_to_ids[l].append(str(line_count - 1) + "," + row[0])
                     line_count += 1
 
             print(f'Processed {line_count} lines.')
@@ -145,23 +145,6 @@ class DataHub(object):
 
 def get_data_loader(root, batch_size, preprocess, split='train', sequential=False,
                     num_workers=4):
-    # # G R B Y
-    # mean = [13.528, 20.535, 14.249, 21.106]
-    # std = [28.700, 38.161, 40.196, 38.172]
-    # # mean =  [x / 255.0 for x in [13.528, 20.535, 14.249, 21.106]]
-    # # std = [x / 255.0 for x in [28.700, 38.161, 40.196, 38.172]]
-    # normalize = transforms.Normalize(
-    #     mean=mean,
-    #     std=std
-    # )
-    # preprocess = transforms.Compose([
-    #     # transforms.Resize(128, PIL.Image.BILINEAR),
-    #     # transforms.RandomCrop(224),
-    #     transforms.ToTensor(),
-    #     mytfm.RandomFlip2d_cls((1, 1)),
-    #     mytfm.RandomCrop2d_cls((384, 384)),
-    #     normalize
-    # ])
     dset = HPA(root=root, split=split, transform=preprocess)
     if sequential is True:
         sampler = SequentialSampler(dset)
