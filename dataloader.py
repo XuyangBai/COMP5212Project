@@ -8,11 +8,10 @@ import transforms as mytfm
 import torchvision.transforms as transforms
 import json
 from dataset import HPA
+import csv
 
-# torch.multiprocessing.freeze_support()
 
-
-def get_sampler(split, inst_num=None, prob=None):
+def get_sampler(split, min_batchsz=None, prob=None):
     if prob is None:
         with open('prob.json', 'r') as f:
             class_to_prob = json.load(f)
@@ -23,21 +22,24 @@ def get_sampler(split, inst_num=None, prob=None):
     with open(f'preprocess/{class_id}.txt', 'r') as f:
         instance_ids = f.readlines()
         instance_ids = [int(id.split(",")[0]) for id in instance_ids]
-    if inst_num is None:
+    if min_batchsz is None:
         all = np.array(instance_ids)
     else:
-        with open(f'{split}.csv', 'r') as f:
-            all_instances_id = f.readlines()
-        train_ids = instance_ids
-        train_ids_other = np.random.choice(np.arange(len(all_instances_id)), inst_num - len(instance_ids))
-        all = np.concatenate((train_ids, train_ids_other), axis=0)
+        if len(instance_ids) >= min_batchsz:
+            all = np.array(instance_ids)
+        else:
+            with open(f'{split}.csv', 'r') as f:
+                all_instances_id = f.readlines()
+            train_ids = instance_ids
+            train_ids_other = np.random.choice(np.arange(len(all_instances_id)), min_batchsz - len(instance_ids))
+            all = np.concatenate((train_ids, train_ids_other), axis=0)
     np.random.shuffle(all)
     return SubsetRandomSampler(all), class_id
 
 
 def get_data_loader_meta_learning(root, batch_size, preprocess, split='train', inst_num=None, sequential=False, num_workers=4,
                                   prob=None):
-    dset = HPA(root=root, split='all', transform=preprocess)
+    dset = HPA(root=root, split=split, transform=preprocess)
     sampler, class_id = get_sampler(split=split, inst_num=inst_num, prob=prob)
     loader = DataLoader(dset, batch_size=batch_size, sampler=sampler, num_workers=num_workers)
     return loader, class_id
@@ -66,6 +68,7 @@ class DataHub(object):
                                            True, num_workers)
         self._trainseqloader = get_data_loader(root, test_bs, test_tfm, train_sp,
                                                True, num_workers)
+        self.preprocess(train_sp + '.csv')
 
     def trainloader(self):
         return self._trainloader
@@ -80,7 +83,7 @@ class DataHub(object):
         return self._trainseqloader
 
     def taskloader(self, inst_num=None, prob=None):
-        return get_data_loader_meta_learning(self.root, self.train_bs, 'train', inst_num, self.train_tfm, False,
+        return get_data_loader_meta_learning(self.root, self.train_bs, self.train_tfm, 'train', inst_num, False,
                                              self.num_workers, prob)
 
     def get_train_tfm(self, train_flip, train_crop, train_black):
@@ -101,6 +104,43 @@ class DataHub(object):
             tfm_list.append(mytfm.CenterCrop2d_cls(test_crop))
 
         return transforms.Compose(tfm_list)
+
+    def preprocess(self, csvfile='train.csv'):
+        class_to_ids = {}
+        for i in range(28):
+            class_to_ids[i] = []
+
+        with open(csvfile, 'r') as csv_file:
+            csv_reader = csv.reader(csv_file, delimiter=',')
+            line_count = 0
+
+            for row in csv_reader:
+                if line_count == 0:
+                    line_count += 1
+                    continue
+                else:
+                    labels = [int(n) for n in row[1].split(' ')]
+                    for l in labels:
+                        class_to_ids[l].append(row[0])
+                    line_count += 1
+
+            print(f'Processed {line_count} lines.')
+
+        # 将属于每个类的图片id存入txt文件，每行一个id
+        for i in range(28):
+            with open('preprocess/{}.txt'.format(i), 'w+') as f:
+                f.write("\n".join(class_to_ids[i]))
+                print("There are {0} numbers pictures with label {1}".format(len(class_to_ids[i]), i))
+
+        # 计算每个类出现的概率，存入prob.json
+        dict = {}
+        class_count = 0
+        for i in range(28):
+            class_count += len(class_to_ids[i])
+        for i in range(28):
+            dict[i] = len(class_to_ids[i]) * 1.0 / class_count
+        with open('prob.json', 'w+') as f:
+            f.write(json.dumps(dict))
 
 
 def get_data_loader(root, batch_size, preprocess, split='train', sequential=False,
