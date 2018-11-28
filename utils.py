@@ -65,7 +65,7 @@ def adjust_opt(optimizer, epoch, max_epoch, **kw):
     for i, param in enumerate(optimizer.param_groups):
         param['lr'] = adjust_lr(i, epoch, max_epoch, **kw)
 
-class DataCube(object):
+class DataCubeNaive(object):
     def __init__(self, train_loader, val_loader, test_loader, trainseq_loader):
         self._trainloader = train_loader
         self._valloader = val_loader

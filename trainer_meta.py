@@ -1,78 +1,54 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Nov 23 12:00:14 2018
+Created on Mon Nov 26 23:10:36 2018
 
 @author: rongzhao
 """
-
 import torch
 import torch.nn as nn
 import numpy as np
 import os.path as P
-from model import resnet18_protein, f1_loss
+from model import resnet18_protein
 from utils import timestr, adjust_opt
 from evaluator import evaluate as eval_kernel
 import collections
+from trainer import Metric
 
-class Dummy_Dataloader(object):
-    '''Create a dummy dataloader to test trainer'''
-    def __init__(self, length, bsize=32, channels=4, H=512, W=512, nClass=28):
-        self.data = torch.ones((bsize, channels, H, W))
-        self.data.normal_()
-        self.label = torch.ones((bsize, nClass))
-        self.label.bernoulli_()
-        self.len = length
-        self.outstanding_batches = self.len
-        
-    def __iter__(self):
-        self.outstanding_batches = self.len
-        return self
-    
-    def __next__(self):
-        if self.outstanding_batches <= 0:
-            raise StopIteration
-        self.outstanding_batches -= 1
-        return self.data, self.label
-    
-class Metric(object):
-    '''Metric class manages the record and log of classification metrics'''
-    def __init__(self, metric_dict, split):
-        self.dict = metric_dict
-        self.split = split
-        
-    def print(self, prewords=''):
-        pstr = prewords
-        for k, v in self.dict.items():
-            if isinstance(v, collections.Iterable):
-                continue
-            pstr += '%s = %.3f ' % (k, v)
-        print(self.split + ': ' + pstr)
-
-
-class Trainer(object):
+class Trainer_Meta(object):
     '''A functional class facilitating and supporting all procedures in training phase'''
     def __init__(self, model_cube, data_cube, criterion_cube, writer_cube, 
-                 lr_scheme, snapshot_scheme, device, wrap_test=False, task_weight=None):
-        self.model, self.optimizer, self.start_epoch = \
+                 lr_cube, snapshot_scheme, device, wrap_test=False, task_weight=None):
+        self.model, self.model_inner, self.optimizer, self.optimizer_inner, self.start_epoch = \
             self.init_model(model_cube) # Initialize model
 #        if model_cube['resume']:
 #            self._optim_device(device)
         self.parse_dataloader(data_cube)
         self.parse_criterion(criterion_cube)
         self.parse_writer(writer_cube)
-        self.lr_scheme = lr_scheme
+        self.lr_scheme = lr_cube['lr_scheme']
+        self.lr_scheme_inner = lr_cube['lr_scheme_inner']
         self.snapshot_scheme = snapshot_scheme
-        self.max_epoch = lr_scheme['max_epoch'] if not wrap_test else 0
+        self.max_epoch = self.lr_scheme['max_epoch'] if not wrap_test else 0
         self.root = snapshot_scheme['root']
         self.device = device
         self.task_weight = task_weight
         
+        self.lr_inner = self.lr_scheme_inner['base_lr']
+        self.k = lr_cube['k']
+        
         if not wrap_test:
             with open( P.join(self.root, 'description.txt'), 'w' ) as f:
-                f.write(str(lr_scheme) + '\n' + str(snapshot_scheme) + '\n' + str(self.model))
+                f.write(str(lr_cube) + '\n' + str(snapshot_scheme) + '\n' + str(self.model))
+        
         self.model.to(self.device)
         self.model.train()
+        images, _ = next(iter(self.trainloader))
+        l = self.model(images[:1].to(device)).sum()
+        l.backward()
+        self.model.zero_grad()
+        self.model_inner.to(self.device)
+        self.model_inner.train()
         
     def tb_write_scalar(self, metric, epoch):        
         for k, v in metric.dict.items():
@@ -86,9 +62,11 @@ class Trainer(object):
         loss_all = []
         max_metric = 0
         print(timestr(), 'Optimization Begin')
+        
         for epoch in range(self.start_epoch, self.max_epoch+1):
             # Adjust learning rate
             adjust_opt(self.optimizer, epoch-1, **self.lr_scheme)
+            adjust_opt(self.optimizer_inner, epoch-1, **self.lr_scheme_inner)
             loss = self.train_epoch(verbose)
             loss_all.append(loss)
             
@@ -103,76 +81,92 @@ class Trainer(object):
                 self._snapshot(epoch)
             
             if epoch % self.snapshot_scheme['val_interval'] == 0 or epoch == self.start_epoch:
-                train_metric, val_metric = self.validate_online(epoch)
+                train_metric, val_metric = self.validate_online(self.model, epoch)
                 train_metric.print()
                 val_metric.print()
-                if max_metric <= val_metric.dict[metricOI] and epoch > 10:
-                    max_metric = val_metric.dict[metricOI]
+                
+                train_metric_in, val_metric_in = self.validate_online(self.model_inner, epoch)
+                train_metric_in.print('[inner]')
+                val_metric_in.print('[inner]')
+                if max_metric <= val_metric_in.dict[metricOI] and epoch > 10:
+                    max_metric = val_metric_in.dict[metricOI]
                     self._snapshot(epoch, 'max')
-            
+                    self._snapshot(epoch, 'max_inner', is_inner=True)
+                
             if self.writer:
                 self.writer.add_scalar('Learning Rate', self._get_lr(), epoch)
                 self.writer.add_scalar('Loss', loss, epoch)
                 self.tb_write_scalar(train_metric, epoch)
                 self.tb_write_scalar(val_metric, epoch)
                     
-        train_metric, val_metric, test_metric = self.validate_final()
+        train_metric, val_metric, test_metric = self.validate_final(self.model)
         train_metric.print()
         val_metric.print()
         test_metric.print()
+        
+        train_metric_in, val_metric_in, test_metric_in = self.validate_final(self.model_inner)
+        train_metric_in.print('[inner]')
+        val_metric_in.print('[inner]')
+        test_metric_in.print('[inner]')
         self._snapshot(epoch, str(epoch))
+        self._snapshot(epoch, str(epoch)+'_inner', is_inner=True)
         return train_metric, val_metric, test_metric
         
     def train_epoch(self, verbose=False):
         '''Train the model for one epoch, return the average loss'''
         loss_buf = []
-        for i, (images, labels) in enumerate(self.trainloader):
+        
+        for i, (images, labels) in enumerate(self.trainloader, 1):
             # images (N, C, H, W) => (N, 28), labels (N, 28)
             images, labels = images.to(self.device), labels.to(self.device)
-            self.optimizer.zero_grad()
-            out = self.model(images)
+            self.optimizer_inner.zero_grad()
+            out = self.model_inner(images)
             criterion = nn.BCEWithLogitsLoss(self.task_weight)
-            loss1 = criterion(out, labels)
-            loss2 = f1_loss(labels, torch.sigmoid(out))
-            loss = loss1 + loss2
+            loss = criterion(out, labels)
             loss.backward()
-            self.optimizer.step()
+            self.optimizer_inner.step()
+            # Accumulate gradient in outer model
+            self.model.accum_grad(self.model_inner, self.k, self.lr_inner)
+            if i % self.k == 0:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+            
             loss_buf.append(loss.detach().cpu().numpy())
             if verbose:
                 print('The %d-th batch finished: loss = %.3f' % (i, loss_buf[-1]))
         
         return np.array(loss_buf).mean()
     
-    def evaluate(self, dataloader):
-        self.model.eval()
+    def evaluate(self, model, dataloader):
+        model.eval()
         with torch.no_grad():
             metric_dict = eval_kernel(self.model, dataloader, self.device)
-        self.model.train()
+        model.train()
         return metric_dict
     
-    def test(self, pretrain):
+    def test(self, model, pretrain):
         '''Cordinate the testing of the model after training'''
 #        save_dir = P.join(self.root, foldername)
 #        pretrain = P.join(self.root, 'state_%s.pkl'%state_suffix)
         self._load_pretrain(pretrain)
-        train_metric, val_metric, test_metric = self.validate_final()
+        train_metric, val_metric, test_metric = self.validate_final(model)
         train_metric.print()
         val_metric.print()
         test_metric.print()
         return train_metric, val_metric, test_metric
         
-    def validate_final(self):
+    def validate_final(self, model):
         '''Validate the model after training finished, detailed metrics would be recorded'''
-        train_metric = Metric(self.evaluate(self.trainseqloader), 'Train')
-        val_metric = Metric(self.evaluate(self.valloader), 'Val')
-        test_metric = Metric(self.evaluate(self.testloader), 'Test')
+        train_metric = Metric(self.evaluate(model, self.trainseqloader), 'Train')
+        val_metric = Metric(self.evaluate(model, self.valloader), 'Val')
+        test_metric = Metric(self.evaluate(model, self.testloader), 'Test')
         
         return train_metric, val_metric, test_metric
                 
-    def validate_online(self, epoch):
+    def validate_online(self, model, epoch):
         '''Validate the model during training, record a minimal number of metrics'''
-        train_metric = Metric(self.evaluate(self.trainseqloader), 'Train')
-        val_metric = Metric(self.evaluate(self.valloader), 'Val')
+        train_metric = Metric(self.evaluate(model, self.trainseqloader), 'Train')
+        val_metric = Metric(self.evaluate(model, self.valloader), 'Val')
         
         return train_metric, val_metric
         
@@ -180,7 +174,9 @@ class Trainer(object):
     def init_model(model_cube):
         '''Initialize the model, optimizer and related variables according to model_cube'''
         model = model_cube['model']
+        model_inner = model_cube['model_inner']
         optimizer = model_cube['optimizer']
+        optimizer_inner = model_cube['optimizer_inner']
         pretrain = model_cube['pretrain']
         resume = model_cube['resume']
         start_epoch = 1
@@ -200,8 +196,8 @@ class Trainer(object):
                 model.load_state_dict(state['state_dict'])
             else:
                 raise RuntimeError('No checkpoint found at %s' % pretrain)
-        
-        return model, optimizer, start_epoch
+        model_inner.copy_state(model)
+        return model, model_inner, optimizer, optimizer_inner, start_epoch
     
     def parse_dataloader(self, data_cube):
         self.trainloader = data_cube.trainloader()
@@ -231,69 +227,24 @@ class Trainer(object):
     def _get_lr(self, group=0):
         return self.optimizer.param_groups[group]['lr']
         
-    def _snapshot(self, epoch, name=None):
+    def _snapshot(self, epoch, name=None, is_inner=False):
         '''Take snapshot of the model, save to root dir'''
 #        self.model.to(torch.device('cpu'))
+        if is_inner:
+            model, optimizer = self.model_inner, self.optimizer_inner
+        else:
+            model, optimizer = self.model, self.optimizer
         state_dict = {'epoch': epoch,
-                      'state_dict': self.model.state_dict(),
-                      'optimizer': self.optimizer.state_dict()}
+                      'state_dict': model.state_dict(),
+                      'optimizer': optimizer.state_dict()}
         if name is None:
             filename = '%s/state_%04d.pkl' % (self.root, epoch)
         else:
             filename = '%s/state_%s.pkl' % (self.root, name)
         print('%s Snapshotting to %s' % (timestr(), filename))
         torch.save(state_dict, filename)
-#        self.model.to(self.device)
         
     def _optim_device(self, device):
         for k, v in self.optimizer.state.items():
             for kk, vv in v.items():
                 v[kk] = vv.to(device)
-
-
-class TrainerX(object):
-    '''Trainer class maintainance all procedures of the training phase'''
-    def __init__(self, model, dataloader, optimizer, device='cuda:0', writer=None, 
-                 task_weight=None):
-        self.model = model
-        self.dataloader = dataloader
-        self.optimizer = optimizer
-        self.device = device
-        self.writer = writer
-        self.task_weight = task_weight
-        
-        self.model.to(device)
-        if self.task_weight != None:
-            self.task_weight = torch.Tensor(self.task_weight).to(device)
-            
-    def train_epoch(self):
-        '''Train the model for one epoch, return the average loss'''
-        loss_buf = []
-        for images, labels in iter(self.dataloader):
-            # images (N, C, H, W) => (N, 28), labels (N, 28)
-            images, labels = images.to(self.device), labels.to(self.device)
-            labels.squeeze_(dim=1)
-            self.optimizer.zero_grad()
-            out = self.model(images)
-            criterion = nn.BCEWithLogitsLoss(self.task_weight)
-            loss = criterion(out, labels)
-            loss.backward()
-            self.optimizer.step()
-            loss_buf.append(loss.detach().cpu().numpy())
-        
-        return np.array(loss_buf).mean()
-        
-    def train():
-        pass
-    
-if __name__ == '__main__':
-    model = resnet18_protein()
-    dl = Dummy_Dataloader(10)
-    optim = torch.optim.Adam(model.parameters(), weight_decay=5e-4)
-    trainer = TrainerX(model, dl, optim)
-    loss = trainer.train_epoch()
-    
-    
-    
-    
-    

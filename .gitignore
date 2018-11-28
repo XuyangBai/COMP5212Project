@@ -1,3 +1,10 @@
 *.pyc
+<<<<<<< HEAD
 __pycache__/
 npy/
+=======
+.DS_Store
+.idea/
+npy/
+train/
+>>>>>>> fe9d20b9179197271e36cd9c145191ccf30cc1d3

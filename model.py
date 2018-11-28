@@ -9,6 +9,7 @@ Created on Fri Nov 23 10:44:04 2018
 import torch
 import torch.nn as nn
 from torchvision import models
+from torch.autograd import Variable as V
 import time
 
 def weights_init(m):
@@ -50,6 +51,39 @@ def f1_loss(y_true, y_pred):
     f1 = 2*p*r / (p+r+epsilon)
     f1 = torch.where(torch.isnan(f1), torch.zeros_like(f1), f1)
     return 1 - torch.mean(f1)
+
+class ResNet18_Protein(nn.Module):
+    '''This is a wrap of resnet18 for Meta-Learning'''
+    def __init__(self, in_stride=4, pretrain=False, in_features=4, out_features=28):
+        super(ResNet18_Protein, self).__init__()
+        self.init_kw = {'in_stride': in_stride, 'pretrain': pretrain, 
+                        'in_features': in_features, 'out_features': out_features}
+        self.net = resnet18_protein(in_stride, pretrain, in_features, out_features)
+        
+    def forward(self, x):
+        return self.net(x)
+    
+    def copy(self, device, mode='train'):
+        model = resnet18_protein(**self.init_kw)
+        model.to(device)
+        if mode == 'train':
+            model.train()
+        elif mode in ('eval', 'test'):
+            model.eval()
+        model.load_state(self.net.state_dict())
+        return model
+    
+    def copy_state(self, src_model):
+        self.load_state_dict(src_model.state_dict())
+        
+    def accum_grad(self, src_model, k, lr_inner):
+        name_to_param = dict(self.named_parameters())
+        for name, param in src_model.named_parameters():
+            cur_grad = (param.grad.data) / k / lr_inner
+            if name_to_param[name].grad is None:
+                name_to_param[name].grad = torch.zeros(cur_grad.size())
+            name_to_param[name].grad.data.add_(cur_grad)
+
     
 #t = time.time()
 #v = torch.ones(128, 4, 512, 512)
