@@ -35,6 +35,21 @@ def resnet18_protein(in_stride=4, pretrain=False, in_features=4, out_features=28
         model.apply(weights_init)
         
     return model
+
+def f1_loss(y_true, y_pred):
+    
+    tp = torch.sum( (y_true*y_pred).float(), dim=0)
+    tn = torch.sum( ((1-y_true)*(1-y_pred)).float(), dim=0)
+    fp = torch.sum( ((1-y_true)*y_pred).float(), dim=0)
+    fn = torch.sum( (y_true*(1-y_pred)).float(), dim=0)
+
+    epsilon = 1e-07
+    p = tp / (tp + fp + epsilon)
+    r = tp / (tp + fn + epsilon)
+
+    f1 = 2*p*r / (p+r+epsilon)
+    f1 = torch.where(torch.isnan(f1), torch.zeros_like(f1), f1)
+    return 1 - torch.mean(f1)
     
 #t = time.time()
 #v = torch.ones(128, 4, 512, 512)

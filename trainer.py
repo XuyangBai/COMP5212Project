@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import os.path as P
-from model import resnet18_protein
+from model import resnet18_protein, f1_loss
 from utils import timestr, adjust_opt
 from evaluator import evaluate as eval_kernel
 import collections
@@ -130,7 +130,9 @@ class Trainer(object):
             self.optimizer.zero_grad()
             out = self.model(images)
             criterion = nn.BCEWithLogitsLoss(self.task_weight)
-            loss = criterion(out, labels)
+            loss1 = criterion(out, labels)
+            loss2 = f1_loss(labels, torch.sigmoid(out))
+            loss = loss1 + loss2
             loss.backward()
             self.optimizer.step()
             loss_buf.append(loss.detach().cpu().numpy())
