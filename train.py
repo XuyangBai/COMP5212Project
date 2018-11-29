@@ -25,19 +25,19 @@ this_fname = 'train.py'
 
 verbose_output = False
 imagenet = False
-is_temp = True
-is_small = True
+is_temp = False
+is_small = False
 
 if is_small:
     train_split, val_split, test_split = 'train-small', 'validation-small', 'test-small'
     train_bs, test_bs = 1, 1
 else:
     train_split, val_split, test_split = 'train', 'validation', 'test'
-    train_bs, test_bs = 256, 512
+    train_bs, test_bs = 200, 400
 
 model_name = 'DenseNet'
 
-data_root = '/home/rongzhao/projects/ml_kaggle_protein/data/npy'
+data_root = '../data/npy'
 data_kw = {
         'root': data_root,
         'train_bs': train_bs,
@@ -73,7 +73,7 @@ lr_cube = {
         'lr_scheme': lr_scheme, 
         }
 
-model = DenseNet_Protein(depths=4, growth_rate=32, bottle_neck=32)
+model = DenseNet_Protein(depths=4, n_scales=5, growth_rate=32, bottle_neck=32)
 if is_temp:
     experiment_id = '%s_temp' % model_name #_%s' % timestr
 else:

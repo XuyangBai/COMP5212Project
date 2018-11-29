@@ -67,7 +67,7 @@ class Trainer_Meta(object):
             adjust_opt(self.optimizer_inner, epoch-1, **self.lr_scheme_inner)
             loss = self.train_epoch(verbose)
             if self.lossF:
-                self.lossF.write('%.6f\n' % loss)
+                self.lossF.write('%d,%.6f\n' % (epoch, loss))
                 self.lossF.flush()
             loss_all.append(loss)
             
@@ -89,8 +89,8 @@ class Trainer_Meta(object):
                 train_metric_in, val_metric_in = self.validate_online(self.model_inner, epoch)
                 train_metric_in.print('[inner]')
                 val_metric_in.print('[inner]')
-                write_metric(train_metric_in, self.trainF)
-                write_metric(val_metric_in, self.valF)
+                write_metric(epoch, train_metric_in, self.trainF)
+                write_metric(epoch, val_metric_in, self.valF)
                 if max_metric <= val_metric_in.dict[metricOI] and epoch > 10:
                     max_metric = val_metric_in.dict[metricOI]
                     self._snapshot(epoch, 'max')

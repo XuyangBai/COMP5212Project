@@ -188,7 +188,12 @@ class Dense2D(nn.Module):
 
         self.n_scales = n_scales
         self.init_stride = init_stride
-        self.inconv = nn.Conv2d(nMods, n_channel_start, 3, init_stride, 1, bias=False)
+        inconv_t = [nn.Conv2d(nMods, n_channel_start, 9, init_stride, 4, bias=False),
+                    nn.BatchNorm2d(n_channel_start),
+                    nn.ReLU(True),
+                    nn.MaxPool2d(2),
+                    nn.Conv2d(n_channel_start, n_channel_start, 1, 1, 0, bias=False),]
+        self.inconv = nn.Sequential(*inconv_t)
         self.dense_blocks = nn.ModuleList([])
         self.transition_downs = nn.ModuleList([])
         self.fc_deconv = nn.ModuleList([])

@@ -53,10 +53,10 @@ def close_file(F):
     if F:
         F.close()
 
-def write_metric(metric, writeF):
+def write_metric(metric, writeF, epoch):
     if writeF:
         d = metric.dict
-        writeF.write('%.4f,%.4f,%.4f,%.4f\n' % (d['acc'], d['f1_macro'], d['prec'], d['recl']))
+        writeF.write('%d,%.4f,%.4f,%.4f,%.4f\n' % (epoch, d['acc'], d['f1_macro'], d['prec'], d['recl']))
         writeF.flush()
 
 class Trainer(object):
@@ -100,7 +100,7 @@ class Trainer(object):
             adjust_opt(self.optimizer, epoch-1, **self.lr_scheme)
             loss = self.train_epoch(verbose)
             if self.lossF:
-                self.lossF.write('%.6f\n' % loss)
+                self.lossF.write('%d,%.6f\n' % (epoch, loss))
                 self.lossF.flush()
             loss_all.append(loss)
             
@@ -118,8 +118,8 @@ class Trainer(object):
                 train_metric, val_metric = self.validate_online(epoch)
                 train_metric.print()
                 val_metric.print()
-                write_metric(train_metric, self.trainF)
-                write_metric(val_metric, self.valF)
+                write_metric(epoch, train_metric, self.trainF)
+                write_metric(epoch, val_metric, self.valF)
                 if max_metric <= val_metric.dict[metricOI] and epoch > 10:
                     max_metric = val_metric.dict[metricOI]
                     self._snapshot(epoch, 'max')
