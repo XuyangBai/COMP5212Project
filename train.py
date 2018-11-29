@@ -15,7 +15,7 @@ from tensorboardX import SummaryWriter
 import os
 import os.path as P
 import shutil
-from model import ResNet18_Protein
+from model import ResNet18_Protein, DenseNet_Protein
 from dataloader import get_data_loader, DataHub
 
 
@@ -30,12 +30,12 @@ is_small = True
 
 if is_small:
     train_split, val_split, test_split = 'train-small', 'validation-small', 'test-small'
-    train_bs, test_bs = 16, 16
+    train_bs, test_bs = 1, 1
 else:
     train_split, val_split, test_split = 'train', 'validation', 'test'
     train_bs, test_bs = 256, 512
 
-model_name = 'ResNet18_multitask_meta1'
+model_name = 'DenseNet'
 
 data_root = '/home/rongzhao/projects/ml_kaggle_protein/data/npy'
 data_kw = {
@@ -59,32 +59,30 @@ data_cube = {
         'task_mask': [1]*28,
         }
 
-lr = 0.05
+lr = 0.001
 lr_scheme = {
         'base_lr': lr,
         'lr_policy': 'multistep',
 #        'lr_policy': 'step', 
-        'gamma': 0.3,
-        'stepvalue': (100, 200, 300, ),
+        'gamma': 0.1,
+        'stepvalue': (400, ),
 #        'stepsize': 1000,
-        'max_epoch': 5,
+        'max_epoch': 500,
         }
 lr_cube = {
         'lr_scheme': lr_scheme, 
         }
 
-model = ResNet18_Protein(pretrain=imagenet)
+model = DenseNet_Protein(depths=4, growth_rate=32, bottle_neck=32)
 if is_temp:
     experiment_id = '%s_temp' % model_name #_%s' % timestr
 else:
     experiment_id = '%s_%s' % (model_name, timestr)
 model_cube = {
         'model': model,
-#        'init_func': misc.weights_init,
-        'pretrain': '/home/rongzhao/projects/ml_kaggle_protein/snapshot/ResNet18_multitask_meta_11270113/state_500.pkl',
+        'pretrain': None,
         'resume': None,
-#        'optimizer': optim.Adam(model.parameters(), lr=lr, weight_decay=5e-4),
-        'optimizer': optim.SGD(model.parameters(), lr=lr, weight_decay=5e-4, momentum=0.9)
+        'optimizer': optim.Adam(model.parameters(), lr=lr),
         }
 criterion_cube = {
         'criterion': nn.BCEWithLogitsLoss(weight=None)
