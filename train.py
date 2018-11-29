@@ -64,7 +64,7 @@ lr_scheme = {
         'base_lr': lr,
         'lr_policy': 'multistep',
 #        'lr_policy': 'step', 
-        'gamma': 0.1,
+        'gamma': 0.3,
         'stepvalue': (150, 300),
 #        'stepsize': 1000,
         'max_epoch': 400,
