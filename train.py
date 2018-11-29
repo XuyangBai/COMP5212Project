@@ -25,14 +25,16 @@ this_fname = 'train.py'
 
 verbose_output = False
 imagenet = False
-is_temp = False
-is_small = False
+is_temp = True
+is_small = True
 
 if is_small:
     train_split, val_split, test_split = 'train-small', 'validation-small', 'test-small'
+    train_bs, test_bs = 16, 16
 else:
     train_split, val_split, test_split = 'train', 'validation', 'test'
-train_bs, test_bs = 256, 512
+    train_bs, test_bs = 256, 512
+
 model_name = 'ResNet18_multitask_meta1'
 
 data_root = '/home/rongzhao/projects/ml_kaggle_protein/data/npy'
@@ -65,7 +67,10 @@ lr_scheme = {
         'gamma': 0.3,
         'stepvalue': (100, 200, 300, ),
 #        'stepsize': 1000,
-        'max_epoch': 400,
+        'max_epoch': 5,
+        }
+lr_cube = {
+        'lr_scheme': lr_scheme, 
         }
 
 model = ResNet18_Protein(pretrain=imagenet)
@@ -99,10 +104,13 @@ snapshot_scheme = {
 writer = SummaryWriter(log_dir='../tboard/%s' % (experiment_id))
 writer_cube = {
         'writer': writer,
+        'trainF': 'train.txt',
+        'valF': 'val.txt',
+        'lossF': 'loss.txt',
         }
 
 trainer = Trainer(model_cube, data_cube, criterion_cube, writer_cube, 
-                  lr_scheme, snapshot_scheme, device)
+                  lr_cube, snapshot_scheme, device)
 
 train_m, val_m, test_m = trainer.train('f1_macro', verbose_output)
 #train_m, val_m, test_m = trainer.test('/home/rongzhao/projects/ml_kaggle_protein/snapshot/ResNet18_multitask_11252204/state_600.pkl')

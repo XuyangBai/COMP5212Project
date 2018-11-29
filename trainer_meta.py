@@ -13,7 +13,7 @@ from model import resnet18_protein
 from utils import timestr, adjust_opt
 from evaluator import evaluate as eval_kernel
 import collections
-from trainer import Metric
+from trainer import Metric, write_metric, close_file
 
 class Trainer_Meta(object):
     '''A functional class facilitating and supporting all procedures in training phase'''
@@ -21,8 +21,8 @@ class Trainer_Meta(object):
                  lr_cube, snapshot_scheme, device, wrap_test=False, task_weight=None):
         self.model, self.model_inner, self.optimizer, self.optimizer_inner, self.start_epoch = \
             self.init_model(model_cube) # Initialize model
-#        if model_cube['resume']:
-#            self._optim_device(device)
+        self.root = snapshot_scheme['root']
+        self.device = device
         self.parse_dataloader(data_cube)
         self.parse_criterion(criterion_cube)
         self.parse_writer(writer_cube)
@@ -30,8 +30,6 @@ class Trainer_Meta(object):
         self.lr_scheme_inner = lr_cube['lr_scheme_inner']
         self.snapshot_scheme = snapshot_scheme
         self.max_epoch = self.lr_scheme['max_epoch'] if not wrap_test else 0
-        self.root = snapshot_scheme['root']
-        self.device = device
         self.task_weight = task_weight
         
         self.lr_inner = self.lr_scheme_inner['base_lr']
@@ -68,6 +66,9 @@ class Trainer_Meta(object):
             adjust_opt(self.optimizer, epoch-1, **self.lr_scheme)
             adjust_opt(self.optimizer_inner, epoch-1, **self.lr_scheme_inner)
             loss = self.train_epoch(verbose)
+            if self.lossF:
+                self.lossF.write('%.6f\n' % loss)
+                self.lossF.flush()
             loss_all.append(loss)
             
             if epoch % self.snapshot_scheme['display_interval'] == 0 or epoch == self.start_epoch:
@@ -88,6 +89,8 @@ class Trainer_Meta(object):
                 train_metric_in, val_metric_in = self.validate_online(self.model_inner, epoch)
                 train_metric_in.print('[inner]')
                 val_metric_in.print('[inner]')
+                write_metric(train_metric_in, self.trainF)
+                write_metric(val_metric_in, self.valF)
                 if max_metric <= val_metric_in.dict[metricOI] and epoch > 10:
                     max_metric = val_metric_in.dict[metricOI]
                     self._snapshot(epoch, 'max')
@@ -110,15 +113,22 @@ class Trainer_Meta(object):
         test_metric_in.print('[inner]')
         self._snapshot(epoch, str(epoch))
         self._snapshot(epoch, str(epoch)+'_inner', is_inner=True)
+        close_file(self.trainF)
+        close_file(self.valF)
+        close_file(self.lossF)
         return train_metric, val_metric, test_metric
         
     def train_epoch(self, verbose=False):
         '''Train the model for one epoch, return the average loss'''
         loss_buf = []
         self.model_inner.copy_state(self.model)
-        trainloader, cls_id, cls_id_v = self.datahub.taskloader(self.min_batchsz, self.task_prob)
-        cls_id_v = torch.FloatTensor(cls_id_v).to(self.device)
-        criterion = nn.BCEWithLogitsLoss(cls_id_v)
+        if self.binary_meta:
+            trainloader, cls_id, cls_id_v = self.datahub.taskloader(self.min_batchsz, self.task_prob)
+            cls_id_v = torch.FloatTensor(cls_id_v).to(self.device)
+            criterion = nn.BCEWithLogitsLoss(cls_id_v)
+        else:
+            trainloader = self.trainloader
+            criterion = nn.BCEWithLogitsLoss(self.task_mask_cuda)
         for i, (images, labels) in enumerate(trainloader, 1):
             # images (N, C, H, W) => (N, 28), labels (N, 28)
             images, labels = images.to(self.device), labels.to(self.device)
@@ -128,7 +138,7 @@ class Trainer_Meta(object):
             loss.backward()
             self.optimizer_inner.step()
             # Accumulate gradient in outer model
-            self.model.accum_grad(self.model_inner, len(self.trainloader), self.lr_inner)
+            self.model.accum_grad(self.model_inner, len(trainloader), self.lr_inner)
 #            if i % self.k == 0:
 #                self.optimizer.step()
 #                self.optimizer.zero_grad()
@@ -216,6 +226,9 @@ class Trainer_Meta(object):
         self.min_batchsz = data_cube['min_batchsz']
         self.task_prob = data_cube['task_prob']
         self.task_mask = data_cube['task_mask']
+        self.binary_meta = data_cube['binary_meta']
+        
+        self.task_mask_cuda = torch.FloatTensor(self.task_mask).to(self.device)
 #        self.val_sn = data_cube.val_sn()
 #        self.test_sn = data_cube.test_sn()
 #        self.train_sn = data_cube.train_sn()
@@ -229,6 +242,16 @@ class Trainer_Meta(object):
         if writer_cube is None:
             return
         self.writer = writer_cube['writer']
+        trainFn, valFn, lossFn = writer_cube.get('trainF', None), \
+        writer_cube.get('valF', None), writer_cube.get('lossF', None)
+        
+        self.trainF = self.valF = self.lossF = None
+        if trainFn:
+            self.trainF = open(P.join(self.root, trainFn), 'w')
+        if valFn:
+            self.valF = open(P.join(self.root, valFn), 'w')
+        if lossFn:
+            self.lossF = open(P.join(self.root, lossFn), 'w')
         
     def _load_pretrain(self, pretrain):
 #        self.model.cpu()

@@ -29,8 +29,9 @@ this_fname = 'train_meta.py'
 verbose_output = False
 imagenet = False
 first14 = False
-is_temp = True
-is_small = True
+binary_meta = False
+is_temp = False
+is_small = False
 
 if is_small:
     train_split, val_split, test_split = 'train-small', 'validation-small', 'test-small'
@@ -39,7 +40,7 @@ else:
     train_split, val_split, test_split = 'train', 'validation', 'test'
     train_bs, test_bs = 256, 512
 
-model_name = 'ResNet18_multitask_meta'
+model_name = 'ResNet18_mulmeta'
 
 data_root = '/home/rongzhao/projects/ml_kaggle_protein/data/npy'
 data_kw = {
@@ -67,31 +68,32 @@ else:
 
 data_cube = {
         'datahub': DataHub(**data_kw),
-        'min_batchsz': None, 
+        'binary_meta': binary_meta,
+        'min_batchsz': 256, 
         'task_prob': normalize(task_prim_prob, mask_meta),
         'task_mask': mask_meta,
         }
 
-lr = .1
+lr = 0.5
 lr_scheme = {
         'base_lr': lr,
         'lr_policy': 'multistep',
         'gamma': 0.3,
-        'stepvalue': (250, 400, 500, ),
-        'max_epoch': 60,
+        'stepvalue': (200, 400, ),
+        'max_epoch': 600,
         }
-lr_inner = .1
+lr_inner = .001
 lr_scheme_inner = {
         'base_lr': lr_inner,
         'lr_policy': 'multistep',
         'gamma': 0.3,
-        'stepvalue': (250, 400, 500, ),
-        'max_epoch': 60,
+        'stepvalue': (200, 400, ),
+        'max_epoch': 600,
         }
 lr_cube = {
         'lr_scheme': lr_scheme,
         'lr_scheme_inner': lr_scheme_inner,
-        'k': 10,
+        'k': None,
         }
 
 model = ResNet18_Protein(pretrain=imagenet)
@@ -103,13 +105,11 @@ else:
 model_cube = {
         'model': model,
         'model_inner': model_inner,
-#        'init_func': misc.weights_init,
         'pretrain': None,
         'resume': None,
-#        'optimizer': optim.Adam(model.parameters(), lr=lr, weight_decay=5e-4),
         'optimizer': optim.SGD(model.parameters(), lr=lr),
-        'optimizer_inner': optim.SGD(model_inner.parameters(), lr=lr_inner, 
-                                     weight_decay=1e-5, momentum=0.9),
+        'optimizer_inner': optim.Adam(model_inner.parameters(), lr=lr_inner),
+            #optim.SGD(model_inner.parameters(), lr=lr_inner, weight_decay=1e-5, momentum=0.9),
         }
 criterion_cube = {
         'criterion': nn.BCEWithLogitsLoss(weight=None)
@@ -143,13 +143,13 @@ data_cube_ft = {
         'task_mask': mask_ft,
         }
 
-lr_ft = .1
+lr_ft = .0001
 lr_scheme_ft = {
         'base_lr': lr_ft,
         'lr_policy': 'multistep',
         'gamma': 0.3,
-        'stepvalue': (10, 20, 30, ),
-        'max_epoch': 40,
+        'stepvalue': (20, 35, 50, ),
+        'max_epoch': 60,
         }
 lr_cube_ft = {
         'lr_scheme': lr_scheme_ft,
@@ -185,7 +185,7 @@ writer_cube_ft = {
 trainer = Trainer(model_cube_ft, data_cube_ft, criterion_cube_ft, writer_cube_ft, 
                   lr_cube_ft, snapshot_scheme_ft, device)
 
-train_m, val_m, test_m = trainer.train('f1_macro', verbose_output)
+train_m_ft, val_m_ft, test_m_ft = trainer.train('f1_macro', verbose_output)
 
 
 

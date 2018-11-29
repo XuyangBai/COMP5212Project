@@ -48,7 +48,16 @@ class Metric(object):
                 continue
             pstr += '%s = %.3f ' % (k, v)
         print(self.split + ': ' + pstr)
+            
+def close_file(F):
+    if F:
+        F.close()
 
+def write_metric(metric, writeF):
+    if writeF:
+        d = metric.dict
+        writeF.write('%.4f,%.4f,%.4f,%.4f\n' % (d['acc'], d['f1_macro'], d['prec'], d['recl']))
+        writeF.flush()
 
 class Trainer(object):
     '''A functional class facilitating and supporting all procedures in training phase'''
@@ -58,13 +67,13 @@ class Trainer(object):
             self.init_model(model_cube) # Initialize model
 #        if model_cube['resume']:
 #            self._optim_device(device)
+        self.root = snapshot_scheme['root']
         self.parse_dataloader(data_cube)
         self.parse_criterion(criterion_cube)
         self.parse_writer(writer_cube)
         self.lr_scheme = lr_cube['lr_scheme']
         self.snapshot_scheme = snapshot_scheme
         self.max_epoch = self.lr_scheme['max_epoch'] if not wrap_test else 0
-        self.root = snapshot_scheme['root']
         self.device = device
         self.task_weight = task_weight
         
@@ -90,6 +99,9 @@ class Trainer(object):
             # Adjust learning rate
             adjust_opt(self.optimizer, epoch-1, **self.lr_scheme)
             loss = self.train_epoch(verbose)
+            if self.lossF:
+                self.lossF.write('%.6f\n' % loss)
+                self.lossF.flush()
             loss_all.append(loss)
             
             if epoch % self.snapshot_scheme['display_interval'] == 0 or epoch == self.start_epoch:
@@ -106,6 +118,8 @@ class Trainer(object):
                 train_metric, val_metric = self.validate_online(epoch)
                 train_metric.print()
                 val_metric.print()
+                write_metric(train_metric, self.trainF)
+                write_metric(val_metric, self.valF)
                 if max_metric <= val_metric.dict[metricOI] and epoch > 10:
                     max_metric = val_metric.dict[metricOI]
                     self._snapshot(epoch, 'max')
@@ -121,6 +135,9 @@ class Trainer(object):
         val_metric.print()
         test_metric.print()
         self._snapshot(epoch, str(epoch))
+        close_file(self.trainF)
+        close_file(self.valF)
+        close_file(self.lossF)
         return train_metric, val_metric, test_metric
         
     def train_epoch(self, verbose=False):
@@ -223,7 +240,17 @@ class Trainer(object):
         if writer_cube is None:
             return
         self.writer = writer_cube['writer']
+        trainFn, valFn, lossFn = writer_cube.get('trainF', None), \
+        writer_cube.get('valF', None), writer_cube.get('lossF', None)
         
+        self.trainF = self.valF = self.lossF = None
+        if trainFn:
+            self.trainF = open(P.join(self.root, trainFn), 'w')
+        if valFn:
+            self.valF = open(P.join(self.root, valFn), 'w')
+        if lossFn:
+            self.lossF = open(P.join(self.root, lossFn), 'w')
+    
     def _load_pretrain(self, pretrain):
 #        self.model.cpu()
         state = torch.load(pretrain)
