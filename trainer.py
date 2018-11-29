@@ -53,7 +53,7 @@ def close_file(F):
     if F:
         F.close()
 
-def write_metric(metric, writeF, epoch):
+def write_metric(epoch, metric, writeF):
     if writeF:
         d = metric.dict
         writeF.write('%d,%.4f,%.4f,%.4f,%.4f\n' % (epoch, d['acc'], d['f1_macro'], d['prec'], d['recl']))

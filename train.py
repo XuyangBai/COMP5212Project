@@ -49,7 +49,7 @@ data_kw = {
         'std': (28.700, 38.161, 40.196, 38.172),
         'train_flip': (1, 1),
         'train_crop' : (384, 384), 
-        'train_black': None, 
+        'train_black': None, #(32, 32), 
         'test_crop': None, 
         'num_workers': 4,
         }
@@ -65,9 +65,9 @@ lr_scheme = {
         'lr_policy': 'multistep',
 #        'lr_policy': 'step', 
         'gamma': 0.1,
-        'stepvalue': (400, ),
+        'stepvalue': (150, 300),
 #        'stepsize': 1000,
-        'max_epoch': 500,
+        'max_epoch': 400,
         }
 lr_cube = {
         'lr_scheme': lr_scheme, 
