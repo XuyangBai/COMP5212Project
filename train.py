@@ -49,7 +49,7 @@ data_kw = {
         'std': (28.700, 38.161, 40.196, 38.172),
         'train_flip': (1, 1),
         'train_crop' : (384, 384), 
-        'train_black': None, #(32, 32), 
+        'train_black': (32, 32), 
         'test_crop': None, 
         'num_workers': 4,
         }
@@ -65,15 +65,15 @@ lr_scheme = {
         'lr_policy': 'multistep',
 #        'lr_policy': 'step', 
         'gamma': 0.3,
-        'stepvalue': (150, 300),
+        'stepvalue': (250, 450),
 #        'stepsize': 1000,
-        'max_epoch': 400,
+        'max_epoch': 600,
         }
 lr_cube = {
         'lr_scheme': lr_scheme, 
         }
 
-model = DenseNet_Protein(depths=4, n_scales=5, growth_rate=32, bottle_neck=32)
+model = DenseNet_Protein(depths=4, n_scales=5, growth_rate=32, bottle_neck=32, drop_rate=0.2)
 if is_temp:
     experiment_id = '%s_temp' % model_name #_%s' % timestr
 else:

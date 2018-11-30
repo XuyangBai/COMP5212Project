@@ -73,9 +73,9 @@ class ResNet18_Protein(nn.Module):
 class DenseNet_Protein(nn.Module):
     '''This is a wrap of resnet18 for Meta-Learning'''
     def __init__(self, in_stride=4, depths=8, n_scales=4, in_features=4, out_features=28, growth_rate=16, 
-                 fc_drop=None, bottle_neck=None):
+                 drop_rate=0.0, bottle_neck=None):
         super(DenseNet_Protein, self).__init__()
-        self.init_kw = {'in_stride': in_stride, 'fc_drop': fc_drop, 'growth_rate':growth_rate,
+        self.init_kw = {'in_stride': in_stride, 'drop_rate': drop_rate, 'growth_rate':growth_rate,
                         'in_features': in_features, 'out_features': out_features,
                         'bottle_neck': bottle_neck, 'depths': depths, 'n_scales': n_scales}
         self.net = densenet(**self.init_kw)
@@ -239,10 +239,10 @@ class Dense2D(nn.Module):
         return out
 ################################ n_scale = 4 ################################
 def densenet(in_stride=4, depths=8, n_scales=4, in_features=4, out_features=28, growth_rate=16, 
-             fc_drop=None, bottle_neck=None):
+             drop_rate=0.0, bottle_neck=None):
     model = Dense2D(nMods=in_features, growth_rates=growth_rate, depths=depths, 
                     n_scales=n_scales, compress=0.5, n_channel_start=64, 
-                    init_stride=in_stride, fc_drop=fc_drop, 
+                    init_stride=in_stride, drop_rate=drop_rate, 
                     nClass=out_features, bottle_neck=bottle_neck)
     return model
 
